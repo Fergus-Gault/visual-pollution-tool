@@ -1,0 +1,3 @@
+config:
+  - DEFAULT_POINTS: 72
+  - DEFAULT_SUBREGIONS: 48
