@@ -25,7 +25,7 @@ class HTTPClient:
             return endpoint
         return f"{self.base_url}/{endpoint.lstrip('/')}"
 
-    def _handle_response(self, response, url):
+    def _handle_response(self, response):
         try:
             response.raise_for_status()
             return response.json()
@@ -45,12 +45,3 @@ class HTTPClient:
             return self._handle_response(response, url)
         except requests.RequestException as e:
             raise Exception(f"Network error: {e}")
-
-    def close(self):
-        self.session.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self):
-        self.close()

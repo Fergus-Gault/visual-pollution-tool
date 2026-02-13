@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 class Config:
     DEFAULT_SUBREGIONS = 48
     DEFAULT_POINTS = 72
@@ -26,3 +29,22 @@ class OSMConfig:
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.private.coffee/api/interpreter"
     ]
+    BINS = 'node["amenity"="waste_basket"]'
+    POWER_NODE = 'node["power"]'
+    POWER_WAY = 'way["power"]'
+    BILLBOARD_NODE = 'node["advertising"="billboard"]'
+    BILLBOARD_WAY = 'way["advertising"="billboard"]'
+    BARRIERS = 'way["barrier"]'
+    TRAFFIC_SIGNS = 'node["highway"="traffic_signals"]'
+    OSM_QUERIES = [BINS, POWER_NODE, POWER_WAY,
+                   BILLBOARD_NODE, BILLBOARD_WAY, BARRIERS, TRAFFIC_SIGNS]
+
+
+class DatabaseConfig:
+    DEFAULT_DB_PATH = Path("data/db.sqlite3")
+
+    @staticmethod
+    def get_sqlite_url():
+        path = DatabaseConfig.DEFAULT_DB_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{path}"

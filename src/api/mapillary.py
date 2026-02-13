@@ -19,7 +19,7 @@ class MapillaryAPI(APIManager):
         return self.http_client.get(endpoint, params=params)
 
     def fetch_region(self, bbox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS):
-        return super().fetch_region(bbox, num_points, num_subregions, source="Mapillary")
+        return super().fetch_region(bbox, num_points, num_subregions, source="mapillary")
 
     def _fetch_subregion(self, subregion: BoundingBox, **kwargs):
         params = ImageRequest(subregion).to_mapillary_params()
@@ -32,13 +32,13 @@ class MapillaryAPI(APIManager):
             try:
                 response = self.send_request("images", params=params)
             except Exception as e:
-                logger.warning(f"Request failed for subtile: {e}")
+                logger.warning(f"Request failed for subregion: {e}")
             data = response.get("data", [])
 
-            normalized_images = [ImageMetadata.from_mapillary(
+            normalised_images = [ImageMetadata.from_mapillary(
                 img).to_dict() for img in data]
 
-            subregion_images.extend(normalized_images)
+            subregion_images.extend(normalised_images)
 
             next_cursor = response.get("paging", {}).get(
                 "cursors", {}).get("after")
@@ -47,5 +47,5 @@ class MapillaryAPI(APIManager):
             time.sleep(MapillaryConfig.DEFAULT_DELAY)
 
         logger.info(
-            f"Total {len(subregion_images)} from subregion {subregion.to_str()}")
+            f"Total {len(subregion_images)} from subregion {subregion.to_str()}.")
         return subregion_images

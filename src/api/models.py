@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Optional
 
-from config import Config, KartaviewConfig
+from config import Config, KartaviewConfig, OSMConfig
 
 
 @dataclass
@@ -99,6 +98,8 @@ class BoundingBox:
     def to_tuple(self):
         return (self.min_lng, self.min_lat, self.max_lng, self.max_lat)
 
+    def to_json(self):
+        return f"{'min_lng': {self.min_lng}, 'min+'}"
     @classmethod
     def from_centre(cls, lng, lat):
         lat_offset = Config.RADIUS_KM / 111.0
@@ -136,3 +137,14 @@ class ImageRequest:
             "seLng": self.bbox.max_lng,
             "zoomLevel": self.zoom_level,
         }
+
+    def to_osm_params(self):
+        query_parts = []
+        for query in OSMConfig.OSM_QUERIES:
+            query_parts.append(f"{query}[!'location']{self.bbox.to_str()};")
+            query_parts.append(
+                f"{query}[location=outdoor]{self.bbox.to_str()};")
+
+        query = "\n".join(query_parts)
+
+        return f"({query});out body;"
