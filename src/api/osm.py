@@ -36,7 +36,13 @@ class OSMApi:
 
     def fetch_region(self, bbox: BoundingBox):
         query = ImageRequest(bbox).to_osm_params()
-        return self.api.get(query)
+        for _ in range(OSMConfig.RETRIES):
+            try:
+                points = self.api.get(query)
+                return points
+            except Exception as e:
+                logger.warning(f"OSM query failed, retrying: {e}")
+        return None
 
     @staticmethod
     def extract_name(element):
@@ -44,3 +50,38 @@ class OSMApi:
         if properties:
             return next(iter(properties.values()))
         return ""
+
+
+class OSMFeatureClassifier:
+    @staticmethod
+    def determine_osm_type(properties: dict) -> str:
+        if 'amenity' in properties:
+            amenity = properties['amenity']
+            if amenity in ['waste_basket', 'waste_disposal', 'recycling']:
+                return 'bin'
+
+        if 'power' in properties:
+            power_type = properties['power']
+            if power_type in ['pole', 'tower', 'portal', 'catenary_mast']:
+                return 'power'
+
+        if 'advertising' in properties:
+            ad_type = properties['advertising']
+            if ad_type in ['billboard', 'poster_box', 'column']:
+                return 'billboard'
+
+        if 'barrier' in properties:
+            barrier_type = properties['barrier']
+            if barrier_type in ['block', 'bollard', 'jersey_barrier']:
+                return 'barrier'
+
+        if 'highway' in properties:
+            if properties['highway'] == 'street_lamp':
+                return 'street_light'
+            elif properties['highway'] == 'traffic_signals':
+                return 'traffic_light'
+
+        if 'traffic_sign' in properties:
+            return 'traffic_sign'
+
+        return 'other'

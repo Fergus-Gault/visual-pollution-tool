@@ -38,6 +38,7 @@ class OSMConfig:
     TRAFFIC_SIGNS = 'node["highway"="traffic_signals"]'
     OSM_QUERIES = [BINS, POWER_NODE, POWER_WAY,
                    BILLBOARD_NODE, BILLBOARD_WAY, BARRIERS, TRAFFIC_SIGNS]
+    RETRIES = 3
 
 
 class DatabaseConfig:
@@ -48,3 +49,15 @@ class DatabaseConfig:
         path = DatabaseConfig.DEFAULT_DB_PATH
         path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{path}"
+
+
+class YoloConfig:
+    DEFAULT_MODEL_PATH = Path("data/model/best.pt")
+    CONF_THRESHOLD = 0.25
+    IMGSZ = 640
+    IOU = 0.7
+    STREAM = True
+
+
+class PipelineConfig:
+    IMAGE_STORAGE_CHUNK_SIZE = 100

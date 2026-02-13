@@ -1,4 +1,6 @@
-from .config import Config, MapillaryConfig, KartaviewConfig, OSMConfig, DatabaseConfig
+from .config import (Config, MapillaryConfig,
+                     KartaviewConfig, OSMConfig, DatabaseConfig, YoloConfig,
+                     PipelineConfig)
 
 __all__ = ['Config', 'MapillaryConfig',
-           'KartaviewConfig', 'OSMConfig', 'DatabaseConfig']
+           'KartaviewConfig', 'OSMConfig', 'DatabaseConfig', 'YoloConfig', 'PipelineConfig']
