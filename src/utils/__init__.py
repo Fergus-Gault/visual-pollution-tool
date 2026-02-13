@@ -1,4 +1,4 @@
 from .logger import setup_logger
-from .config import load_config
+from .regions import RegionManager
 
-__all__ = ['setup_logger', 'load_config']
+__all__ = ['setup_logger', 'RegionManager']
