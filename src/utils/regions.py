@@ -1,8 +1,14 @@
 import numpy as np
 import random
 
+import urllib.request
+import json
+
 from config import Config
 from api import BoundingBox
+from utils import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class RegionManager:
@@ -66,3 +72,46 @@ class RegionManager:
         mid_lat = (bbox.min_lat + bbox.max_lat) / 2
 
         return (mid_lng, mid_lat)
+
+    @staticmethod
+    def geolocate(bbox: BoundingBox):
+        lng, lat = RegionManager.get_region_mid(bbox)
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lng}&zoom=10&addressdetails=1&accept-language=en"
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={'User-Agent': 'VisualPollutionDetection/1.0'}
+            )
+            with urllib.request.urlopen(req, timeout=2) as response:
+                data = json.loads(response.read().decode())
+            if 'address' not in data:
+                logger.warning(
+                    f"No address found for coordinates ({lng}, {lat})")
+                return None, None
+            address = data['address']
+            city = (
+                address.get('city') or
+                address.get('town') or
+                address.get('village') or
+                address.get('municipality') or
+                address.get('county') or
+                address.get('state')
+            )
+            country = address.get('country')
+
+            return (country, city)
+
+        except urllib.error.HTTPError as e:
+            logger.error(f"HTTP error during geocoding ({lng}, {lat}): {e}")
+            return None, None
+        except urllib.error.URLError as e:
+            logger.error(f"URL error during geocoding ({lng}, {lat}): {e}")
+            return None, None
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"JSON decode error during geocoding ({lng}, {lat}): {e}")
+            return None, None
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during geocoding ({lng}, {lat}): {e}")
+            return None, None

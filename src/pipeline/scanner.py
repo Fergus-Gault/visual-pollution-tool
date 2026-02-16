@@ -175,12 +175,11 @@ class Scanner:
             if region is not None:
                 # We return none to indicate that the region already exists
                 return None
-
         elif lng is not None and lat is not None:
             bbox = RegionManager.get_region_bbox(lng, lat)
-            region = self.db.add_region(bbox)
+            country, city = RegionManager.geolocate(bbox)
+            region = self.db.add_region(bbox, city, country)
             return region
-
         else:
             raise Exception(
                 f"Tried to create a region where both region_id and lng and lat are None")
