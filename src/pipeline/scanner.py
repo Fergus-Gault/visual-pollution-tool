@@ -1,10 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from api import HTTPClient, OSMFeatureClassifier
+from sqlalchemy.exc import IntegrityError
+from api import OSMFeatureClassifier
 from typing import List
-from database import DatabaseManager, Region, Image
-from api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageMetadata
+from database import DatabaseManager, Image
+from api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox
 from utils import setup_logger, RegionManager
 from config import PipelineConfig
+import requests
+from PIL import Image as PILImage
+from io import BytesIO
 
 logger = setup_logger(__name__)
 
@@ -20,8 +23,7 @@ class Scanner:
         if not region and not override:
             return
         elif override:
-            # TODO: self._delete_and_rescan
-            pass
+            self._delete_and_rescan(region_id)
         else:
             self._scan_region(region)
 
@@ -93,10 +95,92 @@ class Scanner:
             params_list = []
             urls = []
             for img_data in chunk:
-                geometry = img_data.get('computed_geometry', {})
-                coords = geometry.get('coordinates', [None, None])
-                lng, lat = coords[0], coords[1]
-                if lng is None or lat is None:
+                params = ImageStoreMetadata.convert_data(img_data, region, api)
+                if params is None:
                     continue
+                params_list.append(params)
+                urls.append(params['url'])
 
-                # TODO: Parse and add params
+            params_list = self._fetch_dimensions(params_list)
+
+            images_to_add = []
+            for params in params_list:
+                image = self._create_image(params)
+                images_to_add.append(image)
+
+            try:
+                self.db.session.add_all(images_to_add)
+                self.db.session.commit()
+                stored_count += len(images_to_add)
+            except IntegrityError as e:
+                logger.warning(f"Bulk insert failed: {e}")
+                self.db.session.rollback()
+                for params in params_list:
+                    image = self.db.add_image(**params)
+                    if image is not None:
+                        stored_count += 1
+
+        return stored_count
+
+    def _create_image(self, params):
+        return Image(
+            region=params['region'],
+            lng=params['lng'],
+            lat=params['lat'],
+            id_from_source=params['id_from_source'],
+            source_captured_at=params['source_captured_at'],
+            url=params['url'],
+            source=params['source'],
+            width=params['width'],
+            height=params['height']
+        )
+
+    def _fetch_dimensions(self, params_list):
+        cleaned_params = []
+        for param in params_list:
+            url = param['url']
+            try:
+                response = requests.get(url, timeout=0.5, stream=True)
+                response.raise_for_status()
+
+                img = PILImage.open(BytesIO(response.content))
+                width, height = img.size
+                param['width'] = width
+                param['height'] = height
+                cleaned_params.append(param)
+            except Exception:
+                continue
+
+        return cleaned_params
+
+    def _delete_and_rescan(self, region_id):
+        region = self.db.get_region(region_id)
+        bbox = BoundingBox(region.min_lng, region.min_lat,
+                           region.max_lng, region.max_lat)
+        lng, lat = RegionManager.get_region_mid(bbox)
+
+        images = self.db.get_images_by_region(region_id)
+        for image in images:
+            self.db.delete_image(image.id)
+        detections = self.db.get_detections_by_region(region_id)
+        for det in detections:
+            self.db.delete_detection(det.id)
+        self.db.delete_region(region_id)
+
+        self.scan_region(lng=lng, lat=lat)
+
+    def _get_or_create_region(self, region_id, lng, lat):
+        if region_id is not None:
+            region = self.db.get_region(region_id)
+            if region is not None:
+                # We return none to indicate that the region already exists
+                return None
+
+        elif lng is not None and lat is not None:
+            bbox = RegionManager.get_region_bbox(lng, lat)
+            region = self.db.add_region(bbox)
+            return region
+
+        else:
+            raise Exception(
+                f"Tried to create a region where both region_id and lng and lat are None")

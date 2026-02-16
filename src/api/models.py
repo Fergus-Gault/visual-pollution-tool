@@ -100,6 +100,7 @@ class BoundingBox:
 
     def to_json(self):
         return f"{'min_lng': {self.min_lng}, 'min+'}"
+
     @classmethod
     def from_centre(cls, lng, lat):
         lat_offset = Config.RADIUS_KM / 111.0
@@ -148,3 +149,28 @@ class ImageRequest:
         query = "\n".join(query_parts)
 
         return f"({query});out body;"
+
+
+class ImageStoreMetadata:
+    @staticmethod
+    def convert_data(img_data, region, api):
+        captured_at = img_data.get('captured_at')
+        source_id = str(img_data.get('id'))
+        geometry = img_data.get('computed_geometry', {})
+        coords = geometry.get('coordinates', [None, None])
+        lng, lat = coords[0], coords[1]
+        if lng is None or lat is None:
+            return None
+
+        url = img_data.get('thumb_1024_url')
+        source = api.__class__.__name__.lower()
+
+        return {
+            'region': region,
+            'lng': lng,
+            'lat': lat,
+            'id_from_source': source_id,
+            'source_captured_at': captured_at,
+            'url': url,
+            'source': source,
+        }

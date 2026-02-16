@@ -59,3 +59,10 @@ class RegionManager:
         min_lat, max_lat = sorted([bbox.min_lat, bbox.max_lat])
 
         return [(random.uniform(min_lng, max_lng), random.uniform(min_lat, max_lat)) for _ in range(num_points)]
+
+    @staticmethod
+    def get_region_mid(bbox: BoundingBox):
+        mid_lng = (bbox.min_lng + bbox.max_lng) / 2
+        mid_lat = (bbox.min_lat + bbox.max_lat) / 2
+
+        return (mid_lng, mid_lat)
