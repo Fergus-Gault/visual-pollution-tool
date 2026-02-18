@@ -1,14 +1,15 @@
-from datetime import datetime, timezone
-from pathlib import Path
+from dateutil import parser as date_parser
+from dateutil.parser import ParserError
+from datetime import datetime, date
 
 from sqlalchemy import create_engine, func, desc
 from sqlalchemy.orm import Session, sessionmaker
 
-from api import BoundingBox
-from database import (Base, Region, Image, Detection, OSMFeature,
-                      RegionRepo, ImageRepo, DetectionRepo, OSMFeatureRepo)
-from config import DatabaseConfig
-from utils import setup_logger
+from src.api.models import BoundingBox
+from .models import Base, Region, Image, Detection, OSMFeature
+from .repos import RegionRepo, ImageRepo, DetectionRepo, OSMFeatureRepo
+from src.config import DatabaseConfig
+from src.utils import setup_logger, RegionManager
 
 logger = setup_logger(__name__)
 
@@ -35,7 +36,7 @@ class DatabaseManager:
         return self.regions.get_by_id(region_id)
 
     def add_region(self, bbox: BoundingBox, city=None, country=None):
-        name = f"Region_{bbox.min_lng:.3f}_{bbox.min_lat:.3f}_{bbox.max_lng:.3f}_{bbox.max_lat:.3f}"
+        name = RegionManager.generate_region_name(bbox)
         existing_region = self.regions.get_by_name(name)
         if existing_region:
             return existing_region
@@ -43,6 +44,7 @@ class DatabaseManager:
         region = Region(name=name, min_lng=bbox.min_lng, min_lat=bbox.min_lat,
                         max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country,)
         self.regions.add(region)
+        return region
 
     def delete_region(self, region_id):
         return self.regions.delete(region_id)
@@ -63,8 +65,22 @@ class DatabaseManager:
         return self.images.get_by_region(region_id)
 
     def add_image(self, region, lng, lat, id_from_source, source_captured_at, url, source, width=None, height=None):
+        if isinstance(source_captured_at, int):
+            captured_at = datetime.fromtimestamp(source_captured_at / 1000.0)
+        elif isinstance(source_captured_at, str):
+            try:
+                captured_at = date_parser.parse(source_captured_at)
+            except (ParserError, ValueError, TypeError):
+                return None
+        elif isinstance(source_captured_at, datetime):
+            captured_at = source_captured_at
+        elif isinstance(source_captured_at, date):
+            captured_at = datetime.combine(
+                source_captured_at, datetime.min.time())
+        else:
+            return None
         image = Image(region=region, lng=lng, lat=lat, id_from_source=id_from_source,
-                      source_captured_at=source_captured_at, url=url, source=source, width=width, height=height)
+                      source_captured_at=captured_at, url=url, source=source, width=width, height=height)
         self.images.add(image)
 
     def update_image_status(self, image_id, status):

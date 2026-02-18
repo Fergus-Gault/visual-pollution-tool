@@ -1,10 +1,12 @@
 from sqlalchemy.exc import IntegrityError
-from api import OSMFeatureClassifier
 from typing import List
-from database import DatabaseManager, Image
-from api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox
-from utils import setup_logger, RegionManager
-from config import PipelineConfig
+from datetime import datetime
+from dateutil import parser as date_parser
+from dateutil.parser import ParserError
+from src.database import DatabaseManager, Image
+from src.api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox, OSMFeatureClassifier
+from src.utils import setup_logger, RegionManager
+from src.config import PipelineConfig
 import requests
 from PIL import Image as PILImage
 from io import BytesIO
@@ -20,19 +22,22 @@ class Scanner:
 
     def scan_region(self, region_id=None, lng=None, lat=None, override=False):
         region = self._get_or_create_region(region_id, lng, lat)
-        if not region and not override:
-            return
+        if region is None and not override:
+            return None
         elif override:
             self._delete_and_rescan(region_id)
         else:
             self._scan_region(region)
+        return region
 
     def _scan_region(self, region):
         image_count = 0
-        self._fetch_osm_data(region.bbox)
+        region_bbox = BoundingBox(region.min_lng, region.min_lat,
+                                  region.max_lng, region.max_lat)
+        self._fetch_osm_data(region, region_bbox)
         for api in self.apis:
-            api_images = api.fetch_region(region.bbox)
-            filter_images = self._filter_images(api_images)
+            api_images = api.fetch_region(region_bbox)
+            filter_images = self._filter_images(region_bbox, api_images)
             api_image_count = self._store_images(filter_images, region, api)
             image_count += api_image_count
             logger.info(
@@ -40,8 +45,8 @@ class Scanner:
         logger.info(
             f"Total {image_count} images fetched for region {region.name}.")
 
-    def _fetch_osm_data(self, region):
-        data = self.osm.fetch_region(region)
+    def _fetch_osm_data(self, region, region_bbox):
+        data = self.osm.fetch_region(region_bbox)
         if data is None:
             logger.warning("OSM did not return any data.")
             return []
@@ -76,12 +81,20 @@ class Scanner:
         logger.info(f"Stored {stored_osm_count} OSM features.")
         return osm_points
 
-    def _filter_images(self, region, images):
+    def _filter_images(self, region_bbox, images):
         filtered_images = []
         for image in images:
-            if (region.bbox.min_lng <= image.lng <= region.bbox.max_lng
-                    and region.bbox.min_lat <= image.lat <= region.bbox.max_lat):
-                filtered_images.extend(image)
+            geometry = image.get("geometry", {})
+            coords = geometry.get("coordinates", [None, None])
+            try:
+                lng = float(coords[0])
+                lat = float(coords[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+
+            if (region_bbox.min_lng <= lng <= region_bbox.max_lng
+                    and region_bbox.min_lat <= lat <= region_bbox.max_lat):
+                filtered_images.append(image)
         return filtered_images
 
     def _store_images(self, images, region, api):
@@ -101,19 +114,20 @@ class Scanner:
                 params_list.append(params)
                 urls.append(params['url'])
 
-            params_list = self._fetch_dimensions(params_list)
+            params_list = self._fetch_dimensions(
+                params_list, start, len(images))
 
             images_to_add = []
             for params in params_list:
                 image = self._create_image(params)
-                images_to_add.append(image)
+                if image is not None:
+                    images_to_add.append(image)
 
             try:
                 self.db.session.add_all(images_to_add)
                 self.db.session.commit()
                 stored_count += len(images_to_add)
-            except IntegrityError as e:
-                logger.warning(f"Bulk insert failed: {e}")
+            except IntegrityError:
                 self.db.session.rollback()
                 for params in params_list:
                     image = self.db.add_image(**params)
@@ -123,23 +137,38 @@ class Scanner:
         return stored_count
 
     def _create_image(self, params):
+        source_captured_at = params['source_captured_at']
+        if isinstance(source_captured_at, int):
+            captured_at = datetime.fromtimestamp(source_captured_at / 1000.0)
+        elif isinstance(source_captured_at, str):
+            try:
+                captured_at = date_parser.parse(source_captured_at)
+            except (ParserError, ValueError, TypeError):
+                return None
+        elif isinstance(source_captured_at, datetime):
+            captured_at = source_captured_at
+        else:
+            return None
+
         return Image(
             region=params['region'],
             lng=params['lng'],
             lat=params['lat'],
             id_from_source=params['id_from_source'],
-            source_captured_at=params['source_captured_at'],
+            source_captured_at=captured_at,
             url=params['url'],
             source=params['source'],
             width=params['width'],
             height=params['height']
         )
 
-    def _fetch_dimensions(self, params_list):
+    def _fetch_dimensions(self, params_list, start, num_images):
         cleaned_params = []
-        for param in params_list:
+        for idx, param in enumerate(params_list):
             url = param['url']
             try:
+                logger.info(
+                    f"Fetching dimensions for image {start + idx + 1}/{num_images}")
                 response = requests.get(url, timeout=0.5, stream=True)
                 response.raise_for_status()
 
@@ -149,6 +178,7 @@ class Scanner:
                 param['height'] = height
                 cleaned_params.append(param)
             except Exception:
+                logger.warning("Failed to get dimensions, skipping image.")
                 continue
 
         return cleaned_params
@@ -177,7 +207,8 @@ class Scanner:
                 return None
         elif lng is not None and lat is not None:
             bbox = RegionManager.get_region_bbox(lng, lat)
-            country, city = RegionManager.geolocate(bbox)
+            city, country = RegionManager.geolocate_bbox(bbox)
+            logger.info(f"Adding region for {city}, {country}.")
             region = self.db.add_region(bbox, city, country)
             return region
         else:

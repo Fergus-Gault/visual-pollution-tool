@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from config import Config, KartaviewConfig, OSMConfig
+from src.config import Config, KartaviewConfig, OSMConfig, MapillaryConfig
 
 
 @dataclass
 class Geometry:
-    type = "Point"
-    coordinates = field(default_factory=lambda: (0.0, 0.0))
+    type: str = "Point"
+    coordinates: tuple = field(default_factory=lambda: (0.0, 0.0))
 
     @property
     def lnggitude(self):
@@ -60,7 +60,6 @@ class ImageMetadata:
         return cls(
             id=str(data.get("id", "")),
             geometry=Geometry(
-                type=geometry_data.get("type", "Point"),
                 coordinates=(coords[0], coords[1])
             ),
             thumb_1024_url=data.get("thumb_1024_url", ""),
@@ -72,12 +71,16 @@ class ImageMetadata:
 
     @classmethod
     def from_kartaview(cls, data):
+        file_url = data.get('fileurl', '')
+        if '{{sizeprefix}}' in file_url:
+            file_url = file_url.replace('{{sizeprefix}}', 'lth')
+
         return cls(
             id=str(data.get("id", "")),
             geometry=Geometry(
                 coordinates=(data.get("lng", 0.0), data.get("lat", 0.0))
             ),
-            thumb_1024_url=data.get("fileurl", ""),
+            thumb_1024_url=file_url,
             captured_at=data.get("shotDate", data.get("dateAdded", "")),
             source="kartaview",
             width=data.get("width"),
@@ -93,7 +96,7 @@ class BoundingBox:
     max_lat: float
 
     def to_str(self):
-        return f"{self.min_lng:.6f}, {self.min_lat:.6f}, {self.max_lng:.6f}, {self.max_lat:.6f}"
+        return f"{self.min_lng:.6f},{self.min_lat:.6f},{self.max_lng:.6f},{self.max_lat:.6f}"
 
     def to_tuple(self):
         return (self.min_lng, self.min_lat, self.max_lng, self.max_lat)
@@ -119,15 +122,17 @@ class ImageRequest:
     bbox: BoundingBox
     is_pano: bool = False
     limit: int = Config.IMAGES_PER_POINT
+    fields: str = MapillaryConfig.DEFAULT_FIELDS
 
     # Kartaview specific
     zoom_level: int = KartaviewConfig.ZOOM_LEVEL
 
     def to_mapillary_params(self):
         return {
+            "fields": self.fields,
             "bbox": self.bbox.to_str(),
+            "is_pano": self.is_pano,
             "limit": self.limit,
-            "is_pano": self.is_pano
         }
 
     def to_kartaview_params(self):
@@ -137,14 +142,16 @@ class ImageRequest:
             "seLat": self.bbox.min_lat,
             "seLng": self.bbox.max_lng,
             "zoomLevel": self.zoom_level,
+            "itemsPerPage": self.limit,
+            "page": 1
         }
 
     def to_osm_params(self):
         query_parts = []
         for query in OSMConfig.OSM_QUERIES:
-            query_parts.append(f"{query}[!'location']{self.bbox.to_str()};")
+            query_parts.append(f"{query}[!'location']({self.bbox.to_str()});")
             query_parts.append(
-                f"{query}[location=outdoor]{self.bbox.to_str()};")
+                f"{query}[location=outdoor]({self.bbox.to_str()});")
 
         query = "\n".join(query_parts)
 
@@ -156,7 +163,8 @@ class ImageStoreMetadata:
     def convert_data(img_data, region, api):
         captured_at = img_data.get('captured_at')
         source_id = str(img_data.get('id'))
-        geometry = img_data.get('computed_geometry', {})
+        geometry = img_data.get('geometry') or img_data.get(
+            'computed_geometry', {})
         coords = geometry.get('coordinates', [None, None])
         lng, lat = coords[0], coords[1]
         if lng is None or lat is None:

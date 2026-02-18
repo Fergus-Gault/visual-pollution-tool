@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from utils import setup_logger, load_config, RegionManager
-from config import Config
-from api import BoundingBox, HTTPClient
+from src.utils import setup_logger, RegionManager
+from src.config import Config
+from .models import BoundingBox
+from .client import HTTPClient
 
 logger = setup_logger(__name__)
-config = load_config()
 
 
 class APIManager(ABC):
@@ -22,13 +22,13 @@ class APIManager(ABC):
     def _fetch_subregion(self, subregion, **kwargs):
         pass
 
-    def fetch_region(self, bbox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS, source=None):
+    def fetch_region(self, bbox: BoundingBox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS, source=None):
         if source == "kartaview":
             return self._fetch_random_points(bbox, num_points)
         else:
             return self._fetch_subregion_points(bbox, num_subregions)
 
-    def _fetch_subregion_points(self, bbox, num_subregions):
+    def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):
         subregions = RegionManager.get_subregions(bbox)
         logger.info(f"Generated {num_subregions} subregions for the region.")
         images = []
@@ -39,13 +39,13 @@ class APIManager(ABC):
         return images
 
     def _fetch_random_points(self, bbox, num_points):
-        points = RegionManager.get_random_points(bbox)
+        points = RegionManager.get_random_points(bbox, num_points)
         logger.info(f"Generated {num_points} random points ")
         images = []
         for lng, lat in points:
-            region = BoundingBox.from_centre(lng, lat).to_tuple()
+            region = BoundingBox.from_centre(lng, lat)
             region_img = self._fetch_subregion(region)
             images.extend(region_img)
 
-        logger.info(f"Retrieved {len(images)} images from point.")
+        logger.info(f"Retrieved {len(images)} images from region.")
         return images

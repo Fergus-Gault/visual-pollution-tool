@@ -1,7 +1,8 @@
 import requests
 from requests.adapters import HTTPAdapter
 
-from utils import setup_logger
+from src.utils import setup_logger
+from src.config import Config
 
 logger = setup_logger(__name__)
 
@@ -35,13 +36,13 @@ class HTTPClient:
         except requests.RequestException as e:
             raise Exception(f"Network error: {e}")
 
-    def get(self, endpoint, params, headers):
+    def get(self, endpoint, params=None, headers=None):
         url = self._build_url(endpoint)
         request_headers = {**self.headers, **(headers or {})}
 
         try:
             response = self.session.get(
-                url, params=params, headers=request_headers)
-            return self._handle_response(response, url)
+                url, params=params, headers=request_headers, timeout=Config.REQ_TIMEOUT)
+            return self._handle_response(response)
         except requests.RequestException as e:
             raise Exception(f"Network error: {e}")

@@ -1,4 +1,5 @@
+__all__ = ["Pipeline", "Scanner", "InferenceManager"]
+
 from .pipeline import Pipeline
 from .scanner import Scanner
-
-__all__ = ["Pipeline", "Scanner"]
+from .inference import InferenceManager

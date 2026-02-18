@@ -1,5 +1,5 @@
-from .manager import APIManager
 from .models import Geometry, ImageMetadata, BoundingBox, ImageRequest, ImageStoreMetadata
+from .manager import APIManager
 from .client import HTTPClient
 from .kartaview import KartaviewAPI
 from .mapillary import MapillaryAPI

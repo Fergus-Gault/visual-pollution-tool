@@ -3,8 +3,8 @@ from typing import Generic, TypeVar, Type
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from database import Region, Image, Detection, OSMFeature
-from utils import setup_logger
+from .models import Region, Image, Detection, OSMFeature
+from src.utils import setup_logger
 
 T = TypeVar('T')
 
@@ -27,8 +27,8 @@ class BaseRepo(ABC, Generic[T]):
             self.session.add(entity)
             self.commit()
             return entity
-        except Exception as e:
-            logger.error(f"Failed to add entity: {e}")
+        except Exception:
+            logger.error(f"Failed to add entity (likely duplicate). Skipping.")
             self.session.rollback()
             return None
 
@@ -41,7 +41,7 @@ class BaseRepo(ABC, Generic[T]):
         return True
 
     def commit(self):
-        self.session.comit()
+        self.session.commit()
 
     def rollbcak(self):
         self.session.rollback()

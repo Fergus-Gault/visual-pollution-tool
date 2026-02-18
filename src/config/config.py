@@ -2,25 +2,27 @@ from pathlib import Path
 
 
 class Config:
-    DEFAULT_SUBREGIONS = 48
+    DEFAULT_SUBREGIONS = 72
     DEFAULT_POINTS = 72
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
-    RADIUS_KM = 0.2
-    IMAGES_PER_POINT = 20
+    RADIUS_KM = 0.5
+    IMAGES_PER_POINT = 10
+    ENV_PATH = "./auth/.env"
+    REQ_TIMEOUT = 5
 
 
 class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
-    DEFAULT_DELAY = 0.1
+    DEFAULT_DELAY = 0.3
 
 
 class KartaviewConfig:
     BASE_URL = "https://api.openstreetcam.org/2.0"
-    ZOOM_LEVEL = 21
-    DEFAULT_DELAY = 0.1
+    ZOOM_LEVEL = 20
+    DEFAULT_DELAY = 0.3
 
 
 class OSMConfig:
@@ -60,4 +62,6 @@ class YoloConfig:
 
 
 class PipelineConfig:
-    IMAGE_STORAGE_CHUNK_SIZE = 100
+    IMAGE_STORAGE_CHUNK_SIZE = 50
+    BATCH_SIZE = 16
+    DOWNLOAD_TIMEOUT = 2

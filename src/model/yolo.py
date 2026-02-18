@@ -1,9 +1,9 @@
 from pathlib import Path
 import torch
 from ultralytics import YOLO
-from config import YoloConfig
+from src.config import YoloConfig
 
-from utils import setup_logger
+from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -16,12 +16,14 @@ class YoloModel:
 
     def _init_model(self):
         if not self.model_path.exists():
-            raise FileNotFoundError(
-                f"Model file path not found: {self.model_path}.")
+            return None
         model = YOLO(self.model_path)
         model.to(self.device)
         logger.info(f"Model successfully loaded on {self.device}.")
         return model
+
+    def is_loaded(self):
+        return self.model is not None
 
     def predict(self, source, conf=YoloConfig.CONF_THRESHOLD, iou=YoloConfig.IOU, imgsz=YoloConfig.IMGSZ, stream=YoloConfig.STREAM):
         source = self._normalise_source(source)
