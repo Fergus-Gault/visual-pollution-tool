@@ -2,8 +2,8 @@ from dateutil import parser as date_parser
 from dateutil.parser import ParserError
 from datetime import datetime, date
 
-from sqlalchemy import create_engine, func, desc
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from src.api.models import BoundingBox
 from .models import Base, Region, Image, Detection, OSMFeature

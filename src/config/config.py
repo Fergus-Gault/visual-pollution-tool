@@ -65,3 +65,4 @@ class PipelineConfig:
     IMAGE_STORAGE_CHUNK_SIZE = 50
     BATCH_SIZE = 16
     DOWNLOAD_TIMEOUT = 2
+    NUM_WORKERS = 40

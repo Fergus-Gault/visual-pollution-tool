@@ -5,11 +5,8 @@ from dateutil import parser as date_parser
 from dateutil.parser import ParserError
 from src.database import DatabaseManager, Image
 from src.api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox, OSMFeatureClassifier
-from src.utils import setup_logger, RegionManager
+from src.utils import setup_logger, RegionManager, Dimensioner
 from src.config import PipelineConfig
-import requests
-from PIL import Image as PILImage
-from io import BytesIO
 
 logger = setup_logger(__name__)
 
@@ -114,8 +111,7 @@ class Scanner:
                 params_list.append(params)
                 urls.append(params['url'])
 
-            params_list = self._fetch_dimensions(
-                params_list, start, len(images))
+            params_list = Dimensioner.update_dimensions(params_list)
 
             images_to_add = []
             for params in params_list:
@@ -161,27 +157,6 @@ class Scanner:
             width=params['width'],
             height=params['height']
         )
-
-    def _fetch_dimensions(self, params_list, start, num_images):
-        cleaned_params = []
-        for idx, param in enumerate(params_list):
-            url = param['url']
-            try:
-                logger.info(
-                    f"Fetching dimensions for image {start + idx + 1}/{num_images}")
-                response = requests.get(url, timeout=0.5, stream=True)
-                response.raise_for_status()
-
-                img = PILImage.open(BytesIO(response.content))
-                width, height = img.size
-                param['width'] = width
-                param['height'] = height
-                cleaned_params.append(param)
-            except Exception:
-                logger.warning("Failed to get dimensions, skipping image.")
-                continue
-
-        return cleaned_params
 
     def _delete_and_rescan(self, region_id):
         region = self.db.get_region(region_id)

@@ -41,7 +41,10 @@ class Pipeline:
 
     def _run_args(self, args):
         city = args[1]
-        country = args[2]
+        try:
+            country = args[2]
+        except:
+            country = None
         lng, lat = self.get_lnglat(city, country)
         region = self.scan_region(lng=lng, lat=lat)
         if self.model.is_loaded():
