@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 class Config:
-    DEFAULT_SUBREGIONS = 2000
+    DEFAULT_SUBREGIONS = 5000
     DEFAULT_POINTS = 500
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
@@ -17,7 +17,7 @@ class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
     DEFAULT_DELAY = 0.3
-    IMAGES_PER_POINT = 5
+    IMAGES_PER_POINT = 2
 
 
 class KartaviewConfig:

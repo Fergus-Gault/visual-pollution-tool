@@ -118,4 +118,4 @@ class OSMFeatureRepo(BaseRepo[OSMFeature]):
         super().__init__(session, OSMFeature)
 
     def get_by_region(self, region_id):
-        return self.session.query(OSMFeature).filter_by(region_id == region_id)
+        return self.session.query(OSMFeature).filter(region_id == region_id)

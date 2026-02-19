@@ -60,6 +60,9 @@ class Pipeline:
         if coords is None:
             return
         region = self.scan_region(lng=coords[0], lat=coords[1])
+        if region is None:
+            logger.warning(f"Region for {city.strip()} already exists. Skipping.")
+            return
         region_map = self.mapper.map_region_images(region)
         self.mapper.save(region_map, region,
                          map_type="region_images", file_type="html")

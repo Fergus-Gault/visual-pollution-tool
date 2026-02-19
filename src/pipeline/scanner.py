@@ -18,7 +18,7 @@ class Scanner:
         self.osm = OSMApi()
 
     def scan_region(self, region_id=None, lng=None, lat=None, override=False):
-        region = self._get_or_create_region(region_id, lng, lat)
+        region = self._get_or_create_region(region_id, lng, lat, override)
         if region is None and not override:
             return None
         elif override:
@@ -164,17 +164,11 @@ class Scanner:
                            region.max_lng, region.max_lat)
         lng, lat = RegionManager.get_region_mid(bbox)
 
-        images = self.db.get_images_by_region(region_id)
-        for image in images:
-            self.db.delete_image(image.id)
-        detections = self.db.get_detections_by_region(region_id)
-        for det in detections:
-            self.db.delete_detection(det.id)
         self.db.delete_region(region_id)
 
         self.scan_region(lng=lng, lat=lat)
 
-    def _get_or_create_region(self, region_id, lng, lat):
+    def _get_or_create_region(self, region_id, lng, lat, override=False):
         if region_id is not None:
             region = self.db.get_region(region_id)
             if region is not None:
@@ -184,7 +178,7 @@ class Scanner:
             bbox = RegionManager.get_region_bbox(lng, lat)
             city, country = RegionManager.geolocate_bbox(bbox)
             logger.info(f"Adding region for {city}, {country}.")
-            region = self.db.add_region(bbox, city, country)
+            region = self.db.add_region(bbox, city, country, override)
             return region
         else:
             raise Exception(

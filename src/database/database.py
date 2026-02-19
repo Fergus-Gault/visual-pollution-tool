@@ -35,11 +35,13 @@ class DatabaseManager:
     def get_region(self, region_id):
         return self.regions.get_by_id(region_id)
 
-    def add_region(self, bbox: BoundingBox, city=None, country=None):
+    def add_region(self, bbox: BoundingBox, city=None, country=None, override=False):
         name = RegionManager.generate_region_name(bbox)
         existing_region = self.regions.get_by_name(name)
-        if existing_region:
-            return existing_region
+        if existing_region and not override:
+            return None
+        elif existing_region and override:
+            return region
 
         region = Region(name=name, min_lng=bbox.min_lng, min_lat=bbox.min_lat,
                         max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country,)
@@ -47,6 +49,15 @@ class DatabaseManager:
         return region
 
     def delete_region(self, region_id):
+        images = self.get_images_by_region(region_id)
+        for image in images:
+            self.images.delete(image.id)
+        detections = self.get_detections_by_region(region_id)
+        for det in detections:
+            self.detections.delete(det.id)
+        osm = self.get_osm_features_by_region(region_id)
+        for osm_d in osm:
+            self.osm_features.delete(osm_d.id)
         return self.regions.delete(region_id)
 
     def get_region_bbox(self, region_id):
