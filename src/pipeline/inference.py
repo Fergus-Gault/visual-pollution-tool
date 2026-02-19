@@ -2,6 +2,8 @@ import tempfile
 import os
 import urllib.request
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from src.model import YoloModel
 from src.utils import setup_logger
@@ -32,19 +34,19 @@ class InferenceManager:
         total_detections = 0
         batch_size = PipelineConfig.BATCH_SIZE
         num_batches = (len(images) + batch_size - 1) // batch_size
-
+        batches = []
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
-            batch_num = i // batch_size + 1
-            logger.info(
-                f"Processing batch {batch_num}/{num_batches} ({len(batch)}) images)")
-            image_paths, image_mappings = self._temp_download(batch)
-            results = self._process_batch(image_paths)
-            num_detections = self._process_results(
-                results, image_paths, image_mappings)
-            total_detections += num_detections
-            logger.info(
-                f"Batch complete. Total detections so far: {total_detections}")
+            batches.append(batch)
+        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+            future_to_detection = {
+                executor.submit(self.model.predict, batch): batch for batch in batches
+            }
+            with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
+                for future in as_completed(future_to_detection):
+                    num_detections = future.result()
+                    total_detections += num_detections
+                    pbar.update(1)
         return total_detections
 
     def _temp_download(self, batch):
@@ -70,8 +72,12 @@ class InferenceManager:
 
         return image_paths, image_mappings
 
-    def _process_batch(self, image_paths):
-        return self.model.predict(source=image_paths)
+    def _process_batch(self, batch):
+        image_paths, image_mappings = self._temp_download(batch)
+        results = self.model.predict(source=image_paths)
+        num_detections = self._process_results(
+            results, image_paths, image_mappings)
+        return num_detections
 
     def _process_results(self, results, image_paths, image_mapping):
         num_detections = 0
