@@ -5,6 +5,9 @@ from PIL import Image as PILImage
 from tqdm import tqdm
 
 from src.config import PipelineConfig
+from src.utils import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class Dimensioner:
@@ -13,7 +16,7 @@ class Dimensioner:
     def _update_single(param, session):
         url = param['url']
         try:
-            response = session.get(url, timeout=0.5, stream=True)
+            response = session.get(url, timeout=1.0, stream=True)
             response.raise_for_status()
 
             img = PILImage.open(BytesIO(response.content))
@@ -48,8 +51,6 @@ class Dimensioner:
 
                     if success and updated_params.get("width", None) is not None:
                         cleaned_params.append(updated_params)
-                    else:
-                        continue
 
                     pbar.update(1)
 

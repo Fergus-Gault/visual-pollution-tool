@@ -4,3 +4,4 @@ auth/
 __pycache__/
 .vscode/
 *.sqlite3
+maps/

@@ -7,8 +7,7 @@ class Config:
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
-    RADIUS_KM = 0.5
-    IMAGES_PER_POINT = 10
+    RADIUS_KM = 0.7
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 5
 
@@ -17,12 +16,14 @@ class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
     DEFAULT_DELAY = 0.3
+    IMAGES_PER_POINT = 40
 
 
 class KartaviewConfig:
     BASE_URL = "https://api.openstreetcam.org/2.0"
-    ZOOM_LEVEL = 20
+    ZOOM_LEVEL = 18
     DEFAULT_DELAY = 0.3
+    IMAGES_PER_POINT = 20
 
 
 class OSMConfig:
@@ -62,7 +63,13 @@ class YoloConfig:
 
 
 class PipelineConfig:
-    IMAGE_STORAGE_CHUNK_SIZE = 50
+    IMAGE_STORAGE_CHUNK_SIZE = 200
     BATCH_SIZE = 16
     DOWNLOAD_TIMEOUT = 2
     NUM_WORKERS = 40
+
+
+class MapConfig:
+    MAPILLARY_COLOURS = "#016E01"
+    KARTAVIEW_COLOURS = "#A53912"
+    TILES = "OpenStreetMap"

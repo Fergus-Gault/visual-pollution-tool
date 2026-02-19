@@ -121,7 +121,6 @@ class BoundingBox:
 class ImageRequest:
     bbox: BoundingBox
     is_pano: bool = False
-    limit: int = Config.IMAGES_PER_POINT
     fields: str = MapillaryConfig.DEFAULT_FIELDS
 
     # Kartaview specific
@@ -132,7 +131,7 @@ class ImageRequest:
             "fields": self.fields,
             "bbox": self.bbox.to_str(),
             "is_pano": self.is_pano,
-            "limit": self.limit,
+            "limit": MapillaryConfig.IMAGES_PER_POINT,
         }
 
     def to_kartaview_params(self):
@@ -142,7 +141,7 @@ class ImageRequest:
             "seLat": self.bbox.min_lat,
             "seLng": self.bbox.max_lng,
             "zoomLevel": self.zoom_level,
-            "itemsPerPage": self.limit,
+            "itemsPerPage": KartaviewConfig.IMAGES_PER_POINT,
             "page": 1
         }
 
@@ -172,7 +171,7 @@ class ImageStoreMetadata:
             return None
 
         url = img_data.get('thumb_1024_url')
-        source = api.__class__.__name__.lower()
+        source = img_data.get('_source')
 
         return {
             'region': region,
