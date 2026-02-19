@@ -62,7 +62,7 @@ class OSMFeature(Base):
     __tablename__ = "osm_features"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     region_id = Column(String, ForeignKey('regions.id'), nullable=False)
-    osm_id = Column(String, nullable=False)
+    osm_id = Column(String, unique=True, nullable=False)
     osm_type = Column(String, nullable=False)
     lng = Column(Float, nullable=False)
     lat = Column(Float, nullable=False)

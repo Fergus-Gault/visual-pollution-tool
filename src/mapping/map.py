@@ -1,10 +1,11 @@
-import folium
 from PIL import Image as PILImage
 from io import BytesIO
+from pathlib import Path
+import folium
 from src.database import DatabaseManager
-from src.utils import setup_logger, RegionManager
-from src.api import BoundingBox
-from src.config import MapConfig
+from src.utils import setup_logger
+from .region_images import RegionImages
+from .region_detections import RegionDetections
 
 logger = setup_logger(__name__)
 
@@ -13,64 +14,42 @@ class Mapper:
     def __init__(self, db: DatabaseManager):
         self.db = db
 
-    def save_as_png(self, map, file_name):
-        img_data = map._to_png(5)
+    def save(self, m, region, file_type):
+        if file_type.lower() == "png":
+            self._save_as_png(m, region, file_type)
+        elif file_type.lower() == "html":
+            self._save_as_html(m, region, file_type)
+        else:
+            logger.warning(
+                "Invalid file type, cannot save. Please use either png or html.")
+
+    def _save_as_png(self, m, region, file_type="png"):
+        img_data = m._to_png(5)
         img = PILImage.open(BytesIO(img_data))
+        file_name = self._generate_filename(m, region, file_type)
         img.save(file_name)
 
-    def save_as_html(self, map, file_name):
-        map.save(file_name)
+    def _save_as_html(self, m, region, file_type="html"):
+        file_name = self._generate_filename(m, region, file_type)
+        m.save(file_name)
+
+    def _generate_filename(self, region, file_type):
+        output_file = f"maps/region_images/{region.country}/{region.city}/{region.id}"
+        output_file += ".png" if file_type == "png" else ".html"
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
 
     def map_region_images(self, regions):
-        all_images = []
-        if isinstance(regions, list):
-            for region in regions:
-                images = self.db.get_images_by_region(region.id)
-                all_images.extend(images)
-        else:
-            images = self.db.get_images_by_region(regions.id)
-            all_images.extend(images)
+        return RegionImages.map_region_images(self.db, regions)
 
-        if not all_images:
-            logger.warning(
-                f"No images found in any of the {len(regions)} regions.")
-            return
+    def map_region_detections(self, regions):
+        return RegionDetections.map_region_detections(self.db, regions)
 
-        min_lng = min(r.min_lng for r in regions)
-        min_lat = min(r.min_lat for r in regions)
-        max_lng = max(r.max_lng for r in regions)
-        max_lat = max(r.max_lat for r in regions)
-        bbox = BoundingBox(min_lng, min_lat, max_lng, max_lat)
 
-        centre = RegionManager.get_region_mid(bbox)
-
-        m = folium.Map(location=[centre[1], centre[0]],
-                       zoom_start=14, tiles=MapConfig.TILES)
-
-        source_counts = {}
-        for img in all_images:
-            source = img.source
-            source_counts[source] = source_counts.get(source, 0) + 1
-
-        source_colours = {
-            'mapillary': MapConfig.MAPILLARY_COLOURS,
-            'kartaview': MapConfig.KARTAVIEW_COLOURS,
-        }
-
-        for img in all_images:
-            color = source_colours.get(img.source)
-
-            folium.CircleMarker(
-                location=[img.lat, img.lng],
-                radius=4,
-                tooltip=f"{source}",
-                color=color,
-                fill=True,
-                fillColor=color,
-                fillOpacity=0.7,
-                weight=1
-            ).add_to(m)
-
+class MapHelper:
+    @staticmethod
+    def draw_region_bounds(m, regions):
         for region in regions:
             region_bounds = [
                 [region.min_lat, region.min_lng],
@@ -87,26 +66,4 @@ class Mapper:
                 dash_array='5, 10',
                 popup=region.city
             ).add_to(m)
-
-        source_legend_items = ''.join(
-            [f'<i class="fa fa-circle" style="color:{source_colours.get(source)}"></i> {source.capitalize()}: {count}<br>'for source, count in source_counts.items()])
-
-        legend_html = f'''
-        <div style="position: fixed; 
-                    bottom: 50px; right: 50px; width: 240px; height: auto; 
-                    background-color: white; border:2px solid grey; z-index:9999; 
-                    font-size:14px; padding: 10px">
-            <p style="margin: 0 0 10px 0;"><strong>Combined Regions ({len(regions)})</strong></p>
-            <hr style="margin: 5px 0;">
-            <p style="margin: 5px 0; font-size: 12px;">
-                <strong>Total Images:</strong> {len(all_images)}<br>
-            </p>
-            <p style="margin: 10px 0 5px 0; font-size: 12px;">
-                <strong>By Source:</strong><br>
-                {source_legend_items}
-            </p>
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(legend_html))
-        folium.LayerControl().add_to(m)
         return m

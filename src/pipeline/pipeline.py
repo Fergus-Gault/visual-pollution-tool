@@ -1,6 +1,7 @@
 from src.database import DatabaseManager
 from src.model import YoloModel
 from src.utils import setup_logger, RegionManager
+from src.mapping import Mapper
 
 from .scanner import Scanner
 from .inference import InferenceManager
@@ -13,6 +14,7 @@ class Pipeline:
         self.db = DatabaseManager()
         self.model = YoloModel()
         self.scanner = Scanner(self.db)
+        self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
 
     def run(self, file_path=None, args=None):
@@ -34,10 +36,7 @@ class Pipeline:
         with open(file_path, "r") as file:
             for line in file:
                 city, country = line.split(',')
-                lng, lat = self.get_lnglat(city, country)
-                region = self.scan_region(lng=lng, lat=lat)
-                if self.model.is_loaded():
-                    self.run_inference(region)
+                self._run_region(city, country)
 
     def _run_args(self, args):
         city = args[1]
@@ -45,7 +44,14 @@ class Pipeline:
             country = args[2]
         except:
             country = None
+        self._run_region(city, country)
+
+    def _run_region(self, city, country=None):
         lng, lat = self.get_lnglat(city, country)
         region = self.scan_region(lng=lng, lat=lat)
+        region_map = self.mapper.map_region_images(region)
+        self.mapper.save(region_map, region, file_type="html")
         if self.model.is_loaded():
             self.run_inference(region)
+            detections_map = self.mapper.map_region_detections(region)
+            self.mapper.save(detections_map, region, file_type="html")

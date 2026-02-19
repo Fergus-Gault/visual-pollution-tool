@@ -98,3 +98,15 @@ class RegionManager:
     @staticmethod
     def generate_region_name(bbox: BoundingBox):
         return f"Region_{bbox.min_lng:.3f}_{bbox.min_lat:.3f}_{bbox.max_lng:.3f}_{bbox.max_lat:.3f}"
+
+    @staticmethod
+    def get_combined_bbox(regions):
+        min_lng = min(r.min_lng for r in regions)
+        min_lat = min(r.min_lat for r in regions)
+        max_lng = max(r.max_lng for r in regions)
+        max_lat = max(r.max_lat for r in regions)
+        bbox = BoundingBox(min_lng, min_lat, max_lng, max_lat)
+
+        centre = RegionManager.get_region_mid(bbox)
+
+        return bbox, centre

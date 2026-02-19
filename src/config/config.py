@@ -70,6 +70,27 @@ class PipelineConfig:
 
 
 class MapConfig:
-    MAPILLARY_COLOURS = "#016E01"
+    MAPILLARY_COLOURS = "#088908"
     KARTAVIEW_COLOURS = "#A53912"
+    SOURCE_COLOURS = {
+        "mapillary": MAPILLARY_COLOURS,
+        "kartaview": KARTAVIEW_COLOURS,
+    }
+    BILLBOARDS_COLOUR = "#ca0a0a"
+    BINS_COLOUR = "#1e43b3"
+    UTILITY_POLE_COLOUR = "#158619"
+    BARRIERS_COLOUR = "#5eb9e3"
+    POTHOLES_COLOUR = "#A0750A"
+    LITTER_COLOUR = "#8D05A1"
+    OTHER_COLOUR = "#608918"
+    DETECTION_COLOURS = {
+        "billboard": BILLBOARDS_COLOUR,
+        "bin": BINS_COLOUR,
+        "utility_pole": UTILITY_POLE_COLOUR,
+        "barrier": BARRIERS_COLOUR,
+        "pothole": POTHOLES_COLOUR,
+        "litter": LITTER_COLOUR,
+        "other": OTHER_COLOUR
+    }
     TILES = "OpenStreetMap"
+    ZOOM_START = 13
