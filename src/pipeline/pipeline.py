@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from src.database import DatabaseManager
 from src.model import YoloModel
 from src.utils import setup_logger, RegionManager
@@ -18,10 +20,13 @@ class Pipeline:
         self.inference_manager = InferenceManager(self.db, self.model)
 
     def run(self, file_path=None, args=None):
+        start = perf_counter()
         if file_path is not None:
             self._run_file(file_path)
         else:
             self._run_args(args)
+        end = perf_counter()
+        logger.info(f"Completed pipeline in {(end-start):.2f} seconds.")
 
     def get_lnglat(self, city, country=None):
         return RegionManager.geolocate_city(city, country)
@@ -35,7 +40,11 @@ class Pipeline:
     def _run_file(self, file_path):
         with open(file_path, "r") as file:
             for line in file:
-                city, country = line.split(',')
+                country = None
+                try:
+                    city, country = line.split(',')
+                except:
+                    city = line
                 self._run_region(city, country)
 
     def _run_args(self, args):
@@ -47,8 +56,10 @@ class Pipeline:
         self._run_region(city, country)
 
     def _run_region(self, city, country=None):
-        lng, lat = self.get_lnglat(city, country)
-        region = self.scan_region(lng=lng, lat=lat)
+        coords = self.get_lnglat(city, country)
+        if coords is None:
+            return
+        region = self.scan_region(lng=coords[0], lat=coords[1])
         region_map = self.mapper.map_region_images(region)
         self.mapper.save(region_map, region,
                          map_type="region_images", file_type="html")

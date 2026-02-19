@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import requests
+
 from src.utils import setup_logger, RegionManager
-from src.config import Config
+from src.config import Config, PipelineConfig
 from .models import BoundingBox
 from .client import HTTPClient
 
@@ -19,7 +23,7 @@ class APIManager(ABC):
         pass
 
     @abstractmethod
-    def _fetch_subregion(self, subregion, **kwargs):
+    def _fetch_subregion(self, subregion, session=None, **kwargs):
         pass
 
     def fetch_region(self, bbox: BoundingBox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS, source=None):
@@ -29,23 +33,58 @@ class APIManager(ABC):
             return self._fetch_subregion_points(bbox, num_subregions)
 
     def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):
+
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=PipelineConfig.NUM_WORKERS,
+            pool_maxsize=PipelineConfig.NUM_WORKERS * 4,
+            max_retries=0
+        )
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
         subregions = RegionManager.get_subregions(bbox)
         logger.info(f"Generated {num_subregions} subregions for the region.")
         images = []
-        for subregion in subregions:
-            region_img = self._fetch_subregion(subregion)
-            images.extend(region_img)
+        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+            future_to_fetch = {
+                executor.submit(self._fetch_subregion, subregion, session): subregion for subregion in subregions
+            }
+            with tqdm(total=len(subregions), desc="Fetching images from region") as pbar:
+                for future in as_completed(future_to_fetch):
+                    region_img = future.result()
+                    images.extend(region_img)
+
+                    pbar.update(1)
         logger.info(f"Retrieved {len(images)} images from region.")
         return images
 
     def _fetch_random_points(self, bbox, num_points):
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=PipelineConfig.NUM_WORKERS,
+            pool_maxsize=PipelineConfig.NUM_WORKERS * 4,
+            max_retries=0
+        )
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
         points = RegionManager.get_random_points(bbox, num_points)
         logger.info(f"Generated {num_points} random points ")
         images = []
+        subregions = []
         for lng, lat in points:
-            region = BoundingBox.from_centre(lng, lat)
-            region_img = self._fetch_subregion(region)
-            images.extend(region_img)
+            subregions.append(BoundingBox.from_centre(lng, lat))
+        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+            future_to_fetch = {
+                executor.submit(self._fetch_subregion, subregion, session): subregion for subregion in subregions
+            }
+            with tqdm(total=len(subregions), desc="Fetching images from region") as pbar:
+                for future in as_completed(future_to_fetch):
+                    region_img = future.result()
+                    images.extend(region_img)
+
+                    pbar.update(1)
 
         logger.info(f"Retrieved {len(images)} images from region.")
         return images

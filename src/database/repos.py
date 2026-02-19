@@ -28,7 +28,7 @@ class BaseRepo(ABC, Generic[T]):
             self.commit()
             return entity
         except Exception:
-            logger.warning(
+            logger.debug(
                 f"Failed to add entity (likely duplicate). Skipping.")
             self.session.rollback()
             return None

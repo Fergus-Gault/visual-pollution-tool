@@ -2,28 +2,29 @@ from pathlib import Path
 
 
 class Config:
-    DEFAULT_SUBREGIONS = 150
-    DEFAULT_POINTS = 150
+    DEFAULT_SUBREGIONS = 2000
+    DEFAULT_POINTS = 500
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
     RADIUS_KM = 0.7
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 5
+    DEBUG = False
 
 
 class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
     DEFAULT_DELAY = 0.3
-    IMAGES_PER_POINT = 10
+    IMAGES_PER_POINT = 5
 
 
 class KartaviewConfig:
     BASE_URL = "https://api.openstreetcam.org/2.0"
-    ZOOM_LEVEL = 18
+    ZOOM_LEVEL = 20
     DEFAULT_DELAY = 0.3
-    IMAGES_PER_POINT = 10
+    IMAGES_PER_POINT = 1
 
 
 class OSMConfig:
@@ -63,7 +64,7 @@ class YoloConfig:
 
 
 class PipelineConfig:
-    IMAGE_STORAGE_CHUNK_SIZE = 200
+    IMAGE_STORAGE_CHUNK_SIZE = 500
     BATCH_SIZE = 16
     DOWNLOAD_TIMEOUT = 5
     NUM_WORKERS = 40
@@ -71,7 +72,7 @@ class PipelineConfig:
 
 class MapConfig:
     MAPILLARY_COLOURS = "#088908"
-    KARTAVIEW_COLOURS = "#A53912"
+    KARTAVIEW_COLOURS = "#0657A3"
     SOURCE_COLOURS = {
         "mapillary": MAPILLARY_COLOURS,
         "kartaview": KARTAVIEW_COLOURS,

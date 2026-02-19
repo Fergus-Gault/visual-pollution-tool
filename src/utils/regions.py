@@ -93,6 +93,9 @@ class RegionManager:
     def geolocate_city(city, country=None):
         location = RegionManager.geolocator.geocode(
             f"{city} {country if country is not None else ""}", language="en", exactly_one=True)
+        if location is None:
+            logger.warning(f"City {city} not found. Returning.")
+            return None
         return (location.longitude, location.latitude)
 
     @staticmethod

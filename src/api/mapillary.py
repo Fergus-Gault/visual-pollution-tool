@@ -16,14 +16,14 @@ class MapillaryAPI(APIManager):
             raise Exception("Mapillary access token not found.")
         super().__init__(base_url=MapillaryConfig.BASE_URL, default_headers={})
 
-    def send_request(self, endpoint, params=None):
+    def send_request(self, endpoint, params=None, session=None):
         params["access_token"] = self.access_token
-        return self.http_client.get(endpoint, params=params)
+        return self.http_client.get(endpoint, params=params, session=session)
 
     def fetch_region(self, bbox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS):
         return super().fetch_region(bbox, num_points, num_subregions, source="mapillary")
 
-    def _fetch_subregion(self, subregion: BoundingBox, **kwargs):
+    def _fetch_subregion(self, subregion: BoundingBox, session=None, **kwargs):
         params = ImageRequest(subregion).to_mapillary_params()
 
         subregion_images = []
@@ -32,7 +32,8 @@ class MapillaryAPI(APIManager):
             if next_cursor:
                 params["after"] = next_cursor
             try:
-                response = self.send_request("images", params=params)
+                response = self.send_request(
+                    "images", params=params, session=session)
                 if response is None:
                     logger.info("No response from request")
             except Exception as e:
@@ -51,6 +52,4 @@ class MapillaryAPI(APIManager):
                 break
             time.sleep(MapillaryConfig.DEFAULT_DELAY)
 
-        logger.info(
-            f"Total {len(subregion_images)} from subregion {subregion.to_str()}.")
         return subregion_images
