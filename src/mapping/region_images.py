@@ -1,6 +1,6 @@
 import folium
 from src.utils import setup_logger, RegionManager
-from .map import MapHelper
+from .helper import MapHelper
 from src.config import MapConfig
 
 logger = setup_logger(__name__)
@@ -15,8 +15,8 @@ class RegionImages:
                 images = db.get_images_by_region(region.id)
                 all_images.extend(images)
         else:
-            regions = list(regions)
-            images = db.get_images_by_region(regions.id)
+            regions = [regions]
+            images = db.get_images_by_region(regions[0].id)
             all_images.extend(images)
 
         if not all_images:
@@ -37,10 +37,16 @@ class RegionImages:
         for img in all_images:
             colour = MapConfig.SOURCE_COLOURS.get(img.source)
 
+            popup_html = f"""
+                        <div style="font-family: Arial; width: 250px;">
+                        <p style="margin: 10px 0 5px 0;"><a href="{img.url}" target="_blank">View Image</a></p>
+                        </div>"""
+
             folium.CircleMarker(
                 location=[img.lat, img.lng],
                 radius=4,
-                tooltip=f"{source}",
+                popup=folium.Popup(popup_html, max_width=300),
+                tooltip=f"{img.source}",
                 color=colour,
                 fill=True,
                 fillColor=colour,
@@ -48,7 +54,7 @@ class RegionImages:
                 weight=1
             ).add_to(m)
 
-        m = MapHelper.draw_region_bounds(regions)
+        m = MapHelper.draw_region_bounds(m, regions)
 
         source_legend_items = ''.join(
             [f'<i class="fa fa-circle" style="color:{MapConfig.SOURCE_COLOURS.get(source)}"></i> {source.capitalize()}: {count}<br>'for source, count in source_counts.items()])

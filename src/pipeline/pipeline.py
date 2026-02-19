@@ -50,8 +50,10 @@ class Pipeline:
         lng, lat = self.get_lnglat(city, country)
         region = self.scan_region(lng=lng, lat=lat)
         region_map = self.mapper.map_region_images(region)
-        self.mapper.save(region_map, region, file_type="html")
+        self.mapper.save(region_map, region,
+                         map_type="region_images", file_type="html")
         if self.model.is_loaded():
             self.run_inference(region)
             detections_map = self.mapper.map_region_detections(region)
-            self.mapper.save(detections_map, region, file_type="html")
+            self.mapper.save(detections_map, region,
+                             map_type="region_detections", file_type="html")

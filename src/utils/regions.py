@@ -101,6 +101,7 @@ class RegionManager:
 
     @staticmethod
     def get_combined_bbox(regions):
+        from src.api.models import BoundingBox
         min_lng = min(r.min_lng for r in regions)
         min_lat = min(r.min_lat for r in regions)
         max_lng = max(r.max_lng for r in regions)

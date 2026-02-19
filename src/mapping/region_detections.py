@@ -1,8 +1,8 @@
 import folium
+from .helper import MapHelper
 from src.utils import setup_logger, RegionManager
 from src.config import MapConfig
 from src.database import DatabaseManager
-from .map import MapHelper
 
 logger = setup_logger(__name__)
 
@@ -16,8 +16,8 @@ class RegionDetections:
                 detections = db.get_detections_by_region(region.id)
                 all_detections.extend(detections)
         else:
-            regions = list(regions)
-            detections = db.get_detections_by_region(region.id)
+            regions = [regions]
+            detections = db.get_detections_by_region(regions[0].id)
             all_detections.extend(detections)
 
         if not all_detections:
@@ -39,9 +39,19 @@ class RegionDetections:
             colour = MapConfig.DETECTION_COLOURS.get(
                 det.label, MapConfig.OTHER_COLOUR)
 
-            folium.CircleMarker(location=[det.lat, det.lng],
+            popup_html = f"""
+                        <div style="font-family: Arial; width: 250px;">
+                        <p style="margin: 10px 0 5px 0;"><a href="{det.image.url}" target="_blank">View Image</a></p>
+                        <p><b>Detection: {det.label}</b></p>
+                        <p>Confidence: {det.confidence}</p>
+                        <p>Location: ({det.image.lat:.6f}, {det.image.lng:.6f})</p>
+                        <p>Image Source: {det.image.source}</p>
+                        </div>"""
+
+            folium.CircleMarker(location=[det.image.lat, det.image.lng],
                                 radius=4,
                                 tooltip=f"{det.label}",
+                                popup=folium.Popup(popup_html, max_width=300),
                                 color=colour,
                                 fill=True,
                                 fillColor=colour,
@@ -49,13 +59,20 @@ class RegionDetections:
                                 weight=1
                                 ).add_to(m)
 
-        m = MapHelper.draw_region_bounds(regions)
+        m = MapHelper.draw_region_bounds(m, regions)
 
-        # TODO: add legend html
-        # det_legend_items = ...
-        # legend_html = ...
+        legend_html = """
+            <div style="position: fixed;
+                bottom: 50px; right: 50px; width: 250px; height: auto;
+                background-color: white; border:2px solid grey; z-index:9999;
+                font-size:14px; padding: 10px; border-radius: 5px;">
+            <b>Detection Labels</b><br>
+            """
+        for label, color in sorted(MapConfig.DETECTION_COLOURS.items()):
+            legend_html += f'<i style="background:{color}; width: 18px; height: 18px; float: left; margin-right: 8px; border-radius: 50%;"></i>{label}<br>'
+        legend_html += '</div>'
 
-        # m.get_root().html.add_child(folium.Element(legend_html))
+        m.get_root().html.add_child(folium.Element(legend_html))
         folium.LayerControl().add_to(m)
 
         return m
