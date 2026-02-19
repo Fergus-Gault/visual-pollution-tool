@@ -28,7 +28,8 @@ class BaseRepo(ABC, Generic[T]):
             self.commit()
             return entity
         except Exception:
-            logger.error(f"Failed to add entity (likely duplicate). Skipping.")
+            logger.warning(
+                f"Failed to add entity (likely duplicate). Skipping.")
             self.session.rollback()
             return None
 
@@ -99,7 +100,7 @@ class DetectionRepo(BaseRepo[Detection]):
         super().__init__(session, Detection)
 
     def get_by_region(self, region_id):
-        return self.session.query(Detection).join(Image).filter_by(Image.region_id == region_id).all()
+        return self.session.query(Detection).join(Image).filter(Image.region_id == region_id).all()
 
     def get_unreviewed(self, region_id=None):
         query = self.session.query(Detection).join(

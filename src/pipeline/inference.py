@@ -31,35 +31,50 @@ class InferenceManager:
             f"Processed {len(images)} images, found {total_detections} detections.")
 
     def _batch_process(self, images):
-        total_detections = 0
         batch_size = PipelineConfig.BATCH_SIZE
         num_batches = (len(images) + batch_size - 1) // batch_size
         batches = []
+
+        all_results = []
+        all_image_paths = []
+        all_image_mappings = {}
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
         with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
             future_to_detection = {
-                executor.submit(self.model.predict, batch): batch for batch in batches
+                executor.submit(self._process_batch, batch, idx): (idx, batch) for idx, batch in enumerate(batches)
             }
             with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
                 for future in as_completed(future_to_detection):
-                    num_detections = future.result()
-                    total_detections += num_detections
+                    results, image_paths, image_mappings = future.result()
+                    all_results.extend(results)
+                    all_image_paths.extend(image_paths)
+                    all_image_mappings.update(image_mappings)
                     pbar.update(1)
+
+        total_detections = self._process_results(
+            all_results, all_image_paths, all_image_mappings)
         return total_detections
 
-    def _temp_download(self, batch):
+    def _temp_download(self, batch, idx):
         image_paths = []
         # Image mappings maps the image path to the image object
-        image_mappings = []
-        temp_dir = tempfile.mkdtemp(prefix="inference_batch_")
+        image_mappings = {}
+        temp_dir = tempfile.mkdtemp(prefix=f"inference_batch_{idx}")
         for idx, image in enumerate(batch):
             try:
                 image_path = os.path.join(
                     temp_dir, f"img_{idx}_{image.id}.jpg")
 
-                with urllib.request.urlopen(image.url, timeout=PipelineConfig.DOWNLOAD_TIMEOUT) as response:
+                request = urllib.request.Request(
+                    image.url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    }
+                )
+
+                with urllib.request.urlopen(request, timeout=PipelineConfig.DOWNLOAD_TIMEOUT) as response:
                     with open(image_path, "wb") as out_file:
                         out_file.write(response.read())
                     image_paths.append(image_path)
@@ -68,16 +83,14 @@ class InferenceManager:
             except Exception as e:
                 logger.warning(
                     f"Failed to download image {image.id} for batch: {e}")
-                self.db.update_image_status(image.id, "failed")
+                # self.db.update_image_status(image.id, "failed")
 
         return image_paths, image_mappings
 
-    def _process_batch(self, batch):
-        image_paths, image_mappings = self._temp_download(batch)
+    def _process_batch(self, batch, idx):
+        image_paths, image_mappings = self._temp_download(batch, idx)
         results = self.model.predict(source=image_paths)
-        num_detections = self._process_results(
-            results, image_paths, image_mappings)
-        return num_detections
+        return results, image_paths, image_mappings
 
     def _process_results(self, results, image_paths, image_mapping):
         num_detections = 0
@@ -87,7 +100,6 @@ class InferenceManager:
                 try:
                     detections = self._extract_det_info(result)
                     self._store_detection(image, detections)
-                    self.db.update_image_status(image.id, "reviewed")
                     num_detections += len(detections)
                 except Exception as e:
                     logger.error(f"Failed to process image {image.id}: {e}")
@@ -103,8 +115,9 @@ class InferenceManager:
                 image=image,
                 label=label,
                 confidence=det["confidence"],
-                bbox=json.dump(det["bbox"])
+                bbox=json.dumps(det["bbox"])
             )
+            self.db.update_image_status(image.id, "reviewed")
 
     def _extract_det_info(self, result):
         detections = []

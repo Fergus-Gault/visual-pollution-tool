@@ -81,7 +81,11 @@ class DatabaseManager:
             return None
         image = Image(region=region, lng=lng, lat=lat, id_from_source=id_from_source,
                       source_captured_at=captured_at, url=url, source=source, width=width, height=height)
-        self.images.add(image)
+        try:
+            self.images.add(image)
+            return True
+        except:
+            return None
 
     def update_image_status(self, image_id, status):
         return self.images.update_status(image_id, status)

@@ -35,10 +35,11 @@ class YoloModel:
             "imgsz": imgsz,
             "device": self.device,
             "stream": stream,
+            "verbose": False
         }
         return self.model.predict(**predict_params)
 
-    def _normalise_source(source):
+    def _normalise_source(self, source):
         if isinstance(source, list):
             return [str(s) if isinstance(s, Path) else s for s in source]
         if isinstance(source, Path):
