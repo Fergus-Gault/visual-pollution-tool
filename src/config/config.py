@@ -7,7 +7,7 @@ class Config:
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
-    RADIUS_KM = 0.7
+    RADIUS_KM = 1.0
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 5
     DEBUG = False
@@ -22,7 +22,7 @@ class MapillaryConfig:
 
 class KartaviewConfig:
     BASE_URL = "https://api.openstreetcam.org/2.0"
-    ZOOM_LEVEL = 20
+    ZOOM_LEVEL = 15
     DEFAULT_DELAY = 0.3
     IMAGES_PER_POINT = 1
 
@@ -97,3 +97,21 @@ class MapConfig:
     }
     TILES = "OpenStreetMap"
     ZOOM_START = 13
+
+
+class LSConfig:
+    BASE_URL = "http://localhost:8080"
+    LABEL_CONFIG = """
+        <View>
+            <Image name="image" value="$image"/>
+            <RectangleLabels name="label" toName="image">
+                <Label value="graffiti"/>
+                <Label value="barrier"/>
+                <Label value="billboard"/>
+                <Label value="utility_pole"/>
+                <Label value="bin"/>
+            </RectangleLabels>
+        </View>
+        """.strip()
+    PROJECT_TITLE = "VP Detection"
+    IMAGES_PER_REGION = 20

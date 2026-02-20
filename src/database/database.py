@@ -10,6 +10,7 @@ from .models import Base, Region, Image, Detection, OSMFeature
 from .repos import RegionRepo, ImageRepo, DetectionRepo, OSMFeatureRepo
 from src.config import DatabaseConfig
 from src.utils import setup_logger, RegionManager
+import random
 
 logger = setup_logger(__name__)
 
@@ -34,6 +35,11 @@ class DatabaseManager:
 
     def get_region(self, region_id):
         return self.regions.get_by_id(region_id)
+
+    def get_random_images(self, region_id, num_images):
+        images = self.get_images_by_region(region_id)
+        k = min(len(images), num_images)
+        return random.sample(images, k=k)
 
     def add_region(self, bbox: BoundingBox, city=None, country=None, override=False):
         name = RegionManager.generate_region_name(bbox)

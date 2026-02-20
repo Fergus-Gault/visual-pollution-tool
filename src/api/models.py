@@ -141,6 +141,7 @@ class ImageRequest:
             "seLat": self.bbox.min_lat,
             "seLng": self.bbox.max_lng,
             "zoomLevel": self.zoom_level,
+            "join": "sequence",
             "itemsPerPage": KartaviewConfig.IMAGES_PER_POINT,
             "page": 1
         }
