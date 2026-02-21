@@ -5,5 +5,5 @@ __pycache__/
 .vscode/
 *.sqlite3
 maps/
-model/
+*.pt
 .venv/
