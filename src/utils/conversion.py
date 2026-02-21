@@ -10,7 +10,7 @@ def _bbox_px_to_ls_percent(x, y, w, h, img_width, img_height):
     return x_pct, y_pct, w_pct, h_pct
 
 
-def _make_rectangle_prediction(label, x_pct, y_pct, w_pct, h_pct):
+def _make_rectangle_prediction(label, x_pct, y_pct, w_pct, h_pct, img_width, img_height):
     return {
         "from_name": "label",
         "to_name": "image",
@@ -21,17 +21,19 @@ def _make_rectangle_prediction(label, x_pct, y_pct, w_pct, h_pct):
             "width": float(w_pct),
             "height": float(h_pct),
             "rectanglelabels": [label],
-        }
+        },
+        "original_width": int(img_width),
+        "original_height": int(img_height),
+        "image_rotation": 0,
     }
 
 
-def get_prediction(img, det):
-    bbox_coords = json.loads(det.bbox) if isinstance(
-        det.bbox, str) else det.bbox
+def get_prediction(img, pred):
+    bbox_coords = json.loads(pred.bbox) if isinstance(
+        pred.bbox, str) else pred.bbox
     x1, y1, x2, y2 = bbox_coords
-    x, y = x1, y1
-    w, h = x2-x1, y2-y1
+    w, h = x2 - x1, y2 - y1
 
     x_pct, y_pct, w_pct, h_pct = _bbox_px_to_ls_percent(
-        x, y, w, h, img.width, img.height)
-    return _make_rectangle_prediction(det.label, x_pct, y_pct, w_pct, h_pct)
+        x1, y1, w, h, img.width, img.height)
+    return _make_rectangle_prediction(pred.label, x_pct, y_pct, w_pct, h_pct, img.width, img.height)

@@ -1,0 +1,20 @@
+from src.pipeline import Pipeline
+from src.config import Config, ArgsConfig
+import sys
+
+if __name__ == "__main__":
+    pipeline = Pipeline()
+    args = sys.argv
+    collect_only = False
+    override = False
+    if ArgsConfig.DEBUG in args:
+        Config.DEBUG = True
+    if ArgsConfig.COLLECT_ONLY in args:
+        collect_only = True
+    if ArgsConfig.OVERRIDE in args:
+        override = True
+    if ".csv" in args[1] or ".txt" in args[1]:
+        pipeline.run(
+            file_path=args[1], collect_only=collect_only, override=override)
+    else:
+        pipeline.run(args=args, collect_only=collect_only, override=override)

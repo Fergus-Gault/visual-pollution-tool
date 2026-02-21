@@ -13,6 +13,17 @@ class Config:
     DEBUG = False
 
 
+class ArgsConfig:
+    DEBUG = "--debug"
+    COLLECT_ONLY = "--collect-only"
+    OVERRIDE = "--override"
+    ARGS = [
+        DEBUG,
+        COLLECT_ONLY,
+        OVERRIDE,
+    ]
+
+
 class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
@@ -115,3 +126,17 @@ class LSConfig:
         """.strip()
     PROJECT_TITLE = "VP Detection"
     IMAGES_PER_REGION = 20
+    MAX_RETRIES = 3
+    BATCH_SIZE = 1000
+    TIME_BETWEEN_BATCHES = 0.2
+    REQ_TIMEOUT_S = 2
+    MODEL_VERSION = "yolo_11_m"
+
+
+class TrainConfig:
+    BASE_MODEL = "yolo26l.pt"
+    EPOCHS = 100
+    IMGSZ = 640
+    MODEL_VERSION = "v2"
+    DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
+    DEVICE = "cuda"

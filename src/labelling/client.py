@@ -1,27 +1,30 @@
 from src.database import DatabaseManager
-from src.config import LSConfig, Config, PipelineConfig
+from src.config import LSConfig, Config
 from src.utils import setup_logger, get_prediction
 from dotenv import dotenv_values
 from label_studio_sdk import LabelStudio
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
-from tqdm import tqdm
-from typing import List
-
+import requests
+import time
 logger = setup_logger(__name__)
-
-_thread = threading.local()
 
 
 class LabelStudioClient:
     def __init__(self, db: DatabaseManager):
         self.api_key = dotenv_values(
             Config.ENV_PATH).get("LABEL_STUDIO_API_KEY")
-        self.base_url = LSConfig.BASE_URL
+        self.base_url = LSConfig.BASE_URL.rstrip("/")
         self.db = db
         self.client = self._init_client()
         self.project_id = self._get_or_create_project()
+
+        self.session = requests.Session()
+        self.session.headers.update({
+            "Authorization": f"Token {self.api_key.strip()}",
+            "Content-Type": "application/json",
+        })
+        self.max_retries = LSConfig.MAX_RETRIES
+        self.batch_size = LSConfig.BATCH_SIZE
+        self.timeout = LSConfig.REQ_TIMEOUT_S
 
     def _init_client(self):
         return LabelStudio(base_url=self.base_url, api_key=self.api_key)
@@ -30,95 +33,90 @@ class LabelStudioClient:
         existing_projects = self.client.projects.list()
         for project in existing_projects:
             if project.title == LSConfig.PROJECT_TITLE:
-                return project.id
+                return int(project.id)
 
         project = self.client.projects.create(
             title=LSConfig.PROJECT_TITLE, label_config=LSConfig.LABEL_CONFIG)
-        return project.id
+        return int(project.id)
 
     def upload(self):
+        tasks = self._make_task_payload()
+        self._import_tasks(tasks)
+
+    def _import_tasks(self, tasks):
+        if not tasks:
+            return []
+
+        url = f"{self.base_url}/api/projects/{self.project_id}/import"
+
+        for batch_idx, batch in enumerate(self._chunk(tasks)):
+            logger.info(f"Uploading batch {batch_idx}.")
+            self._post_with_retries(url, json=batch)
+            logger.info(f"Successfully uploaded batch {batch_idx}")
+            if LSConfig.TIME_BETWEEN_BATCHES > 0:
+                time.sleep(LSConfig.TIME_BETWEEN_BATCHES)
+
+    def _post_with_retries(self, url, json):
+        last_err = None
+        for attempt in range(self.max_retries):
+            logger.info(
+                f"Attempting to import tasks, attempt {attempt+1}/{self.max_retries}")
+            try:
+                response = self.session.post(
+                    url, json=json, timeout=self.timeout)
+                if response.status_code in (429, 502, 503, 504):
+                    raise requests.HTTPError(
+                        f"{response.status_code} transient", response=response)
+
+                response.raise_for_status()
+
+                return response.json() if response.content else None
+
+            except Exception as e:
+                last_err = e
+                sleep_s = 2 ** attempt
+                time.sleep(sleep_s)
+        raise RuntimeError(
+            f"Bulk import failed after {self.max_retries} retries: {last_err}")
+
+    def _chunk(self, tasks):
+        if self.batch_size <= 0:
+            raise ValueError("Batch size must be > 0.")
+        for i in range(0, len(tasks), self.batch_size):
+            yield list(tasks[i: i + self.batch_size])
+
+    def _make_task_payload(self):
+        tasks = []
         regions = self.db.get_all_regions()
-        images = []
+        logger.info("Creating tasks payload.")
         for region in regions:
-            images.extend(self.db.get_random_images(
-                region.id, LSConfig.IMAGES_PER_REGION))
+            images = self.db.get_random_images(
+                region.id, LSConfig.IMAGES_PER_REGION)
 
-        tasks_payload = [
-            {"data": {"image": img.url, "image_id": img.id}}
-            for img in images
-        ]
+            for img in images:
+                task = {"data": {"image": img.url, "image_id": img.id}}
 
-        tasks = self._create_tasks(tasks_payload)
-        prediction_payload = []
-        for img, task in zip(images, tasks):
-            dets = self.db.get_detections_by_image(img.id) or []
-            predictions = []
-            if dets and (not img.width or not img.height):
-                logger.warning("No dimensions found for image, skipping.")
-                dets = []
+                preds = self.db.get_detections_by_image(img.id) or []
+                if preds:
+                    results = [get_prediction(img, p) for p in preds]
+                    task_score = float(max(float(p.confidence) for p in preds))
 
-            for det in dets:
-                pred = get_prediction(img, det)
-                predictions.append(pred)
-            prediction_payload.append((task.id, predictions))
+                    task["predictions"] = [{
+                        "model_version": LSConfig.MODEL_VERSION,
+                        "score": task_score,
+                        "result": results,
+                    }]
 
-        self._attach_predictions(prediction_payload)
+                tasks.append(task)
 
-    def _create_tasks(self, tasks):
-        tasks_list = list(tasks)
-        data_list = [
-            t["data"] if isinstance(t, dict) and "data" in t else t
-            for t in tasks_list
-        ]
+        return tasks
 
-        created_tasks = [None] * len(data_list)
-
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as ex:
-            futures = {ex.submit(self._create_one_task, d): i for i, d in enumerate(data_list)}
-            with tqdm(total=len(data_list), desc="Creating tasks") as pbar:
-                for future in as_completed(futures):
-                    i = futures[future]
-                    created_tasks[i] = future.result()
-                    pbar.update(1)
-
-        return created_tasks
-
-    def _get_client(self):
-        if not hasattr(_thread, "client"):
-            _thread.client = self._init_client()
-        return _thread.client
-
-    def _create_one_task(self, data):
-        client = self._get_client()
-        return client.tasks.create(project=self.project_id, data=data)
-
-    def _attach_predictions(self, task_predictions: List):
-        created_predictions = []
-
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as ex:
-            futures = [ex.submit(self._attach_single, tp)
-                       for tp in task_predictions]
-            with tqdm(total=len(futures), desc="Attaching predictions") as pbar:
-                for future in as_completed(futures):
-                    res = future.result()
-                    if res is not None:
-                        if isinstance(res, list):
-                            created_predictions.extend(res)
-                        else:
-                            created_predictions.append(res)
-                    pbar.update(1)
-
-        logger.info(
-            f"Successfully attached {len(created_predictions)} predictions.")
-
-    def _attach_single(self, task_prediction):
-        client = self._get_client()
-        task_id, results = task_prediction
-
-        payload = {"task": task_id, "result": results}
-        try:
-            return client.predictions.create(**payload)
-        except Exception as e:
-            logger.warning(
-                f"Failed to attach prediction for task {task_id}: {e}")
-            return None
+    def download(self):
+        # TODO: Download images that have completed labels
+        # And then split them into folders based on country/city
+        # Labels and images will need to be associated
+        # This is so train/test/val splits are even per region
+        # Will need to download the actual image from the URL too.
+        # This function however will likely just need to get the images
+        # with their ids and annotations, unless downloading the image is straightforward
+        pass
