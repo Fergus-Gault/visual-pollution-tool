@@ -1,4 +1,5 @@
 from pathlib import Path
+import albumentations as A
 
 
 class Config:
@@ -158,3 +159,11 @@ class TrainConfig:
     TRAIN_SPLIT = 0.7
     VAL_SPLIT = 0.2
     TEST_SPLIT = 0.1
+    AUGMENTATIONS = [
+        A.Blur(blur_limit=5, p=0.3),
+        A.CLAHE(clip_limit=3.0, p=0.3),
+        A.Affine(rotate=(-30, 30), scale=(0.8, 1.2),
+                 keep_ratio=True, rotate_method="largest_box"),
+        A.HorizontalFlip(p=0.4),
+        A.VerticalFlip(p=0.2)
+    ]
