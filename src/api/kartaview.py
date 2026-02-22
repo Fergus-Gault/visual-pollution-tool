@@ -21,8 +21,8 @@ class KartaviewAPI(APIManager):
     def send_request(self, endpoint, params=None, session=None):
         return self.http_client.get(endpoint, params=params, session=session, headers=self.default_headers)
 
-    def fetch_region(self, bbox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS, source=None):
-        return super().fetch_region(bbox, num_points, num_subregions, source="kartaview")
+    def fetch_region(self, bbox, num_subregions=KartaviewConfig.SUBREGIONS):
+        return super().fetch_region(bbox, num_subregions)
 
     def _fetch_subregion(self, subregion: BoundingBox, session=None):
         params = ImageRequest(subregion).to_kartaview_params()
@@ -31,7 +31,7 @@ class KartaviewAPI(APIManager):
             response = self.send_request(
                 "photo/", params=params, session=session)
         except Exception as e:
-            logger.warning(f"Request failed for subregion: {e}")
+            logger.debug(f"Request failed for subregion: {e}")
             return []
 
         raw_data = response.get("result", {}).get("data", [])

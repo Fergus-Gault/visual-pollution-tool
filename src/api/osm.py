@@ -1,9 +1,10 @@
 import overpass
 
 from .models import BoundingBox, ImageRequest
-from src.utils import setup_logger
+from src.utils import setup_logger, RegionManager
 from src.config import OSMConfig
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 logger = setup_logger(__name__)
 
 
@@ -35,13 +36,31 @@ class OSMApi:
                 continue
 
     def fetch_region(self, bbox: BoundingBox):
+        subregions = RegionManager.get_subregions(
+            bbox, OSMConfig.OSM_SUBREGIONS)
+        data = {}
+        data["features"] = []
+        with ThreadPoolExecutor(max_workers=OSMConfig.OSM_SUBREGIONS) as executor:
+            future_to_fetch = {
+                executor.submit(self._fetch_subregion, subregion): subregion for subregion in subregions
+            }
+            with tqdm(total=OSMConfig.OSM_SUBREGIONS, desc="Fetching OSM data") as pbar:
+                for future in as_completed(future_to_fetch):
+                    osm_subregion = future.result()
+                    if osm_subregion is not None:
+                        data["features"].extend(
+                            osm_subregion.get("features", []))
+                    pbar.update(1)
+        return data
+
+    def _fetch_subregion(self, bbox: BoundingBox):
         query = ImageRequest(bbox).to_osm_params()
         for _ in range(OSMConfig.RETRIES):
             try:
                 points = self.api.get(query)
                 return points
             except Exception as e:
-                logger.warning(f"OSM query failed, retrying: {e}")
+                logger.debug(f"OSM query failed, retrying: {e}")
         return None
 
     @staticmethod

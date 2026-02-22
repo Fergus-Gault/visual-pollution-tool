@@ -3,7 +3,7 @@ from typing import List
 from datetime import datetime
 from dateutil import parser as date_parser
 from dateutil.parser import ParserError
-from src.database import DatabaseManager, Image
+from src.database import DatabaseManager, Image, OSMFeature
 from src.api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox, OSMFeatureClassifier
 from src.utils import setup_logger, RegionManager, Dimensioner
 from src.config import PipelineConfig
@@ -17,24 +17,28 @@ class Scanner:
         self.apis: List[APIManager] = [KartaviewAPI(), MapillaryAPI()]
         self.osm = OSMApi()
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False):
-        region = self._get_or_create_region(region_id, lng, lat, override)
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape"):
+        # TODO: Allow dense city scanning, where number of subregions *5-10
+        # will require delaying to ensure api limits respected
+        region, gdf = self._get_or_create_region(
+            region_id, lng, lat, region_method, override=override)
         if region is None and not override:
             return None
         elif override:
             self._delete_and_rescan(region_id)
         else:
-            self._scan_region(region)
+            self._scan_region(region, gdf)
         return region
 
-    def _scan_region(self, region):
+    def _scan_region(self, region, gdf):
         image_count = 0
         region_bbox = BoundingBox(region.min_lng, region.min_lat,
                                   region.max_lng, region.max_lat)
         self._fetch_osm_data(region, region_bbox)
         for api in self.apis:
             api_images = api.fetch_region(region_bbox)
-            filter_images = self._filter_images(region_bbox, api_images)
+            filter_images = self._filter_images(
+                region_bbox, api_images, gdf)
             api_image_count = self._store_images(filter_images, region, api)
             image_count += api_image_count
             logger.info(
@@ -43,6 +47,7 @@ class Scanner:
             f"Total {image_count} images fetched for region {region.name}.")
 
     def _fetch_osm_data(self, region, region_bbox):
+        logger.info("Fetching OSM data")
         data = self.osm.fetch_region(region_bbox)
         if data is None:
             logger.warning("OSM did not return any data.")
@@ -50,6 +55,7 @@ class Scanner:
 
         osm_points = []
         stored_osm_count = 0
+        to_add = []
 
         for vp in data['features']:
             try:
@@ -66,19 +72,19 @@ class Scanner:
                     osm_id = vp.get('id', str(properties))
                     osm_type = OSMFeatureClassifier.determine_osm_type(
                         properties)
-                    self.db.add_osm_feature(region_id=region.id, osm_id=str(
-                        osm_id), osm_type=osm_type, lng=lng, lat=lat, name=feature_name)
+                    to_add.append(OSMFeature(region_id=region.id, osm_id=str(
+                        osm_id), osm_type=osm_type, lng=lng, lat=lat, name=feature_name))
 
                     stored_osm_count += 1
 
             except (KeyError, IndexError, TypeError) as e:
                 logger.warning(
                     f"Failed to extract coordinates from OSM feature: {e}")
-
+        self.db.add_many_osm_features(to_add)
         logger.info(f"Stored {stored_osm_count} OSM features.")
         return osm_points
 
-    def _filter_images(self, region_bbox, images):
+    def _filter_images(self, region_bbox, images, gdf):
         filtered_images = []
         for image in images:
             geometry = image.get("geometry", {})
@@ -89,9 +95,13 @@ class Scanner:
             except (TypeError, ValueError, IndexError):
                 continue
 
-            if (region_bbox.min_lng <= lng <= region_bbox.max_lng
-                    and region_bbox.min_lat <= lat <= region_bbox.max_lat):
-                filtered_images.append(image)
+            if gdf is None:
+                if (region_bbox.min_lng <= lng <= region_bbox.max_lng
+                        and region_bbox.min_lat <= lat <= region_bbox.max_lat):
+                    filtered_images.append(image)
+            else:
+                if RegionManager.point_in_city(lng, lat, gdf):
+                    filtered_images.append(image)
         return filtered_images
 
     def _store_images(self, images, region, api):
@@ -160,6 +170,8 @@ class Scanner:
 
     def _delete_and_rescan(self, region_id):
         region = self.db.get_region(region_id)
+        if region is None:
+            return None
         bbox = BoundingBox(region.min_lng, region.min_lat,
                            region.max_lng, region.max_lat)
         lng, lat = RegionManager.get_region_mid(bbox)
@@ -168,7 +180,9 @@ class Scanner:
 
         self.scan_region(lng=lng, lat=lat)
 
-    def _get_or_create_region(self, region_id, lng, lat, override=False):
+    def _get_or_create_region(self, region_id, lng, lat, region_method, override=False):
+        # TODO: Fix overriding
+        gdf = None
         if region_id is not None:
             region = self.db.get_region(region_id)
             if region is not None:
@@ -177,9 +191,13 @@ class Scanner:
         elif lng is not None and lat is not None:
             bbox = RegionManager.get_region_bbox(lng, lat)
             city, country = RegionManager.geolocate_bbox(bbox)
+            if region_method == "shape":
+                gdf = RegionManager.get_shape_file(city, country)
+                if gdf is not None:
+                    bbox = RegionManager.bbox_from_shape(gdf)
             logger.info(f"Adding region for {city}, {country}.")
             region = self.db.add_region(bbox, city, country, override)
-            return region
+            return region, gdf
         else:
             raise Exception(
                 f"Tried to create a region where both region_id and lng and lat are None")

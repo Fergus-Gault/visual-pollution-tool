@@ -9,3 +9,4 @@ maps/
 .venv/
 datasets/
 runs/
+cache/

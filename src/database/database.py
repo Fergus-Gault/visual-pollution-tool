@@ -47,7 +47,7 @@ class DatabaseManager:
         if existing_region and not override:
             return None
         elif existing_region and override:
-            return region
+            return existing_region
 
         region = Region(name=name, min_lng=bbox.min_lng, min_lat=bbox.min_lat,
                         max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country,)
@@ -146,6 +146,9 @@ class DatabaseManager:
         osm_feature = OSMFeature(
             region_id=region_id, osm_id=osm_id, osm_type=osm_type, lng=lng, lat=lat, name=name)
         self.osm_features.add(osm_feature)
+
+    def add_many_osm_features(self, to_add):
+        self.osm_features.add_all(to_add)
 
     def get_osm_features_by_region(self, region_id, _type=None):
         query = self.osm_features.get_by_region(region_id)

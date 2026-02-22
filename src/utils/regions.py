@@ -1,13 +1,14 @@
 from __future__ import annotations
+from .logger import setup_logger
+from src.config import Config
 
 import numpy as np
 import random
 from typing import TYPE_CHECKING
 
 from geopy.geocoders import Nominatim
-
-from src.config import Config
-from .logger import setup_logger
+from shapely.geometry import Point
+import osmnx as ox
 
 if TYPE_CHECKING:
     from src.api.models import BoundingBox
@@ -37,10 +38,10 @@ class RegionManager:
         return BoundingBox(min_lng, min_lat, max_lng, max_lat)
 
     @staticmethod
-    def get_subregions(bbox: BoundingBox):
+    def get_subregions(bbox: BoundingBox, num_subregions):
         from src.api.models import BoundingBox
 
-        n_total = max(1, Config.DEFAULT_SUBREGIONS)
+        n_total = max(1, num_subregions)
         nx = int(np.ceil(n_total ** 0.5))
         ny = int(np.ceil(n_total / nx))
 
@@ -66,15 +67,6 @@ class RegionManager:
         return subregions
 
     @staticmethod
-    def get_random_points(bbox: BoundingBox, num_points):
-        if num_points <= 0:
-            return []
-        min_lng, max_lng = sorted([bbox.min_lng, bbox.max_lng])
-        min_lat, max_lat = sorted([bbox.min_lat, bbox.max_lat])
-
-        return [(random.uniform(min_lng, max_lng), random.uniform(min_lat, max_lat)) for _ in range(num_points)]
-
-    @staticmethod
     def get_region_mid(bbox: BoundingBox):
         mid_lng = (bbox.min_lng + bbox.max_lng) / 2
         mid_lat = (bbox.min_lat + bbox.max_lat) / 2
@@ -97,6 +89,30 @@ class RegionManager:
             logger.warning(f"City {city} not found. Returning.")
             return None
         return (location.longitude, location.latitude)
+
+    @staticmethod
+    def get_shape_file(city, country=None):
+        try:
+            query = f"{city}" + (f", {country}" if country is not None else "")
+            return ox.geocode_to_gdf(query)
+        except:
+            return None
+
+    @staticmethod
+    def bbox_from_shape(gdf):
+        from src.api.models import BoundingBox
+        min_lng, min_lat, max_lng, max_lat = gdf.total_bounds
+        return BoundingBox(min_lng, min_lat, max_lng, max_lat)
+
+    @staticmethod
+    def point_in_city(lng, lat, gdf):
+        point = Point(lng, lat)
+
+        if gdf.crs is None:
+            gdf = gdf.set_crs(epsg=4326)
+        elif gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(epsg=4326)
+        return gdf.geometry.contains(point).any()
 
     @staticmethod
     def generate_region_name(bbox: BoundingBox):

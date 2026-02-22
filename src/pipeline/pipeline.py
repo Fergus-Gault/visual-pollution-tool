@@ -19,25 +19,25 @@ class Pipeline:
         self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
 
-    def run(self, file_path=None, args=None, collect_only=False, override=False):
+    def run(self, file_path=None, args=None, collect_only=False, override=False, region_method="shape"):
         start = perf_counter()
         if file_path is not None:
-            self._run_file(file_path, collect_only, override)
+            self._run_file(file_path, collect_only, override, region_method)
         else:
-            self._run_args(args, collect_only, override)
+            self._run_args(args, collect_only, override, region_method)
         end = perf_counter()
         logger.info(f"Completed pipeline in {(end-start):.2f} seconds.")
 
     def get_lnglat(self, city, country=None):
         return RegionManager.geolocate_city(city, country)
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False):
-        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override)
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape"):
+        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method)
 
     def run_inference(self, region):
         self.inference_manager.run_inference(region)
 
-    def _run_file(self, file_path, collect_only, override):
+    def _run_file(self, file_path, collect_only, override, region_method):
         with open(file_path, "r") as file:
             for line in file:
                 country = None
@@ -45,22 +45,23 @@ class Pipeline:
                     city, country = line.split(',')
                 except:
                     city = line
-                self._run_region(city, country, collect_only, override)
+                self._run_region(city, country, collect_only,
+                                 override, region_method)
 
-    def _run_args(self, args, collect_only, override):
+    def _run_args(self, args, collect_only, override, region_method):
         city = args[1]
         try:
             country = args[2]
         except:
             country = None
-        self._run_region(city, country, collect_only, override)
+        self._run_region(city, country, collect_only, override, region_method)
 
-    def _run_region(self, city, country=None, collect_only=False, override=False):
+    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape"):
         coords = self.get_lnglat(city, country)
         if coords is None:
             return
         region = self.scan_region(
-            lng=coords[0], lat=coords[1], override=override)
+            lng=coords[0], lat=coords[1], override=override, region_method=region_method)
         if region is None:
             logger.warning(
                 f"Region for {city.strip()} already exists. Skipping.")

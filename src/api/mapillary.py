@@ -20,8 +20,8 @@ class MapillaryAPI(APIManager):
         params["access_token"] = self.access_token
         return self.http_client.get(endpoint, params=params, session=session)
 
-    def fetch_region(self, bbox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS):
-        return super().fetch_region(bbox, num_points, num_subregions, source="mapillary")
+    def fetch_region(self, bbox, num_subregions=MapillaryConfig.SUBREGIONS):
+        return super().fetch_region(bbox, num_subregions)
 
     def _fetch_subregion(self, subregion: BoundingBox, session=None, **kwargs):
         params = ImageRequest(subregion).to_mapillary_params()
@@ -37,7 +37,7 @@ class MapillaryAPI(APIManager):
                 if response is None:
                     logger.info("No response from request")
             except Exception as e:
-                logger.warning(f"Request failed for subregion: {e}")
+                logger.debug(f"Request failed for subregion: {e}")
                 break
             data = response.get("data", [])
 

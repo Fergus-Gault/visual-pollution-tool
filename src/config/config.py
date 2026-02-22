@@ -2,8 +2,6 @@ from pathlib import Path
 
 
 class Config:
-    DEFAULT_SUBREGIONS = 5000
-    DEFAULT_POINTS = 500
     BBOX_OFFSET = 0.025
     MAX_BBOX_AREA = 0.01
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
@@ -17,10 +15,12 @@ class ArgsConfig:
     DEBUG = "--debug"
     COLLECT_ONLY = "--collect-only"
     OVERRIDE = "--override"
+    REGION_COLLECT = "--region-collect"
     ARGS = [
         DEBUG,
         COLLECT_ONLY,
         OVERRIDE,
+        REGION_COLLECT
     ]
 
 
@@ -29,6 +29,7 @@ class MapillaryConfig:
     DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
     DEFAULT_DELAY = 0.3
     IMAGES_PER_POINT = 2
+    SUBREGIONS = 10000
 
 
 class KartaviewConfig:
@@ -36,6 +37,7 @@ class KartaviewConfig:
     ZOOM_LEVEL = 15
     DEFAULT_DELAY = 0.3
     IMAGES_PER_POINT = 1
+    SUBREGIONS = 1000
 
 
 class OSMConfig:
@@ -54,6 +56,7 @@ class OSMConfig:
     OSM_QUERIES = [BINS, POWER_NODE, POWER_WAY,
                    BILLBOARD_NODE, BILLBOARD_WAY, BARRIERS, TRAFFIC_SIGNS]
     RETRIES = 3
+    OSM_SUBREGIONS = 60
 
 
 class DatabaseConfig:
@@ -75,7 +78,7 @@ class YoloConfig:
 
 
 class PipelineConfig:
-    IMAGE_STORAGE_CHUNK_SIZE = 500
+    IMAGE_STORAGE_CHUNK_SIZE = 2000
     BATCH_SIZE = 16
     DOWNLOAD_TIMEOUT = 5
     NUM_WORKERS = 40

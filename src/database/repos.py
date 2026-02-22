@@ -1,7 +1,8 @@
 from abc import ABC
-from typing import Generic, TypeVar, Type
+from typing import Generic, TypeVar, Type, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from .models import Region, Image, Detection, OSMFeature
 from src.utils import setup_logger
@@ -32,6 +33,10 @@ class BaseRepo(ABC, Generic[T]):
                 f"Failed to add entity (likely duplicate). Skipping.")
             self.session.rollback()
             return None
+
+    def add_all(self, entities: List[T]):
+        self.session.add_all(entities)
+        self.commit()
 
     def delete(self, entity_id):
         entity = self.get_by_id(entity_id)
@@ -119,3 +124,10 @@ class OSMFeatureRepo(BaseRepo[OSMFeature]):
 
     def get_by_region(self, region_id):
         return self.session.query(OSMFeature).filter(region_id == region_id)
+
+    def add_many_osm(self, entities: List[dict]):
+        stmt = sqlite_insert(OSMFeature.__table__).values(entities)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["osm_id"])
+
+        self.session.execute(stmt)
+        self.session.commit()

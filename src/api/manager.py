@@ -26,11 +26,8 @@ class APIManager(ABC):
     def _fetch_subregion(self, subregion, session=None, **kwargs):
         pass
 
-    def fetch_region(self, bbox: BoundingBox, num_points=Config.DEFAULT_POINTS, num_subregions=Config.DEFAULT_SUBREGIONS, source=None):
-        if source == "kartaview":
-            return self._fetch_random_points(bbox, num_points)
-        else:
-            return self._fetch_subregion_points(bbox, num_subregions)
+    def fetch_region(self, bbox: BoundingBox, num_subregions):
+        return self._fetch_subregion_points(bbox, num_subregions)
 
     def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):
 
@@ -43,7 +40,8 @@ class APIManager(ABC):
         session.mount('http://', adapter)
         session.mount('https://', adapter)
 
-        subregions = RegionManager.get_subregions(bbox)
+        subregions = RegionManager.get_subregions(
+            bbox, num_subregions=num_subregions)
         logger.info(f"Generated {num_subregions} subregions for the region.")
         images = []
         with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
@@ -56,35 +54,5 @@ class APIManager(ABC):
                     images.extend(region_img)
 
                     pbar.update(1)
-        logger.info(f"Retrieved {len(images)} images from region.")
-        return images
-
-    def _fetch_random_points(self, bbox, num_points):
-        session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=PipelineConfig.NUM_WORKERS,
-            pool_maxsize=PipelineConfig.NUM_WORKERS * 4,
-            max_retries=0
-        )
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-
-        points = RegionManager.get_random_points(bbox, num_points)
-        logger.info(f"Generated {num_points} random points ")
-        images = []
-        subregions = []
-        for lng, lat in points:
-            subregions.append(BoundingBox.from_centre(lng, lat))
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
-            future_to_fetch = {
-                executor.submit(self._fetch_subregion, subregion, session): subregion for subregion in subregions
-            }
-            with tqdm(total=len(subregions), desc="Fetching images from region") as pbar:
-                for future in as_completed(future_to_fetch):
-                    region_img = future.result()
-                    images.extend(region_img)
-
-                    pbar.update(1)
-
         logger.info(f"Retrieved {len(images)} images from region.")
         return images
