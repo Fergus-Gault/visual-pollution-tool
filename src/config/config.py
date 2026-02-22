@@ -140,3 +140,17 @@ class TrainConfig:
     MODEL_VERSION = "v2"
     DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
     DEVICE = "cuda"
+    LABELS = {
+        "barrier": 0,
+        "billboard": 1,
+        "bin": 2,
+        "graffiti": 3,
+        "mobile_advertisement": 4,
+        "pothole": 5,
+        "road_sign": 6,
+        "shop_sign": 7,
+        "utility_pole": 8
+    }
+    TRAIN_SPLIT = 0.7
+    VAL_SPLIT = 0.2
+    TEST_SPLIT = 0.1

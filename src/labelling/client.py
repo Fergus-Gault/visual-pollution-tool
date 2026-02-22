@@ -1,10 +1,14 @@
 from src.database import DatabaseManager
-from src.config import LSConfig, Config
-from src.utils import setup_logger, get_prediction
+from src.config import LSConfig, Config, TrainConfig
+from src.utils import setup_logger, get_prediction, convert_ls_to_yolo
 from dotenv import dotenv_values
 from label_studio_sdk import LabelStudio
 import requests
+from collections import defaultdict
 import time
+import random
+from pathlib import Path
+from uuid import uuid4
 logger = setup_logger(__name__)
 
 
@@ -60,7 +64,7 @@ class LabelStudioClient:
         last_err = None
         for attempt in range(self.max_retries):
             logger.info(
-                f"Attempting to import tasks, attempt {attempt+1}/{self.max_retries}")
+                f"Sending request, attempt {attempt+1}/{self.max_retries}")
             try:
                 response = self.session.post(
                     url, json=json, timeout=self.timeout)
@@ -111,12 +115,79 @@ class LabelStudioClient:
 
         return tasks
 
+    def _get_annotated_image_ids(self):
+        url = f"{self.base_url}/api/tasks/"
+        headers = {
+            "Authorization": f"Token {self.api_key}",
+        }
+        params = {
+            "project": self.project_id,
+            "completed": "true",
+            "page_size": 100,
+        }
+        annotated = []
+        while True:
+            resp = requests.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            annotated.extend(data["results"])
+
+            if not data.get("next"):
+                break
+
+            url = data["next"]
+            params = None
+
+        out = []
+        for task in annotated:
+            image_id = task["data"].get("image_id")
+            annotations = task.get("annotations", [])
+            out.append({
+                "image_id": image_id,
+                "task_id": task["id"],
+                "annotations": annotations,
+            })
+        return out
+
     def download(self):
-        # TODO: Download images that have completed labels
-        # And then split them into folders based on country/city
-        # Labels and images will need to be associated
-        # This is so train/test/val splits are even per region
-        # Will need to download the actual image from the URL too.
-        # This function however will likely just need to get the images
-        # with their ids and annotations, unless downloading the image is straightforward
-        pass
+        # TODO: Restructure and split up
+        annotated_imgs = self._get_annotated_image_ids()
+        yolo_format = convert_ls_to_yolo(annotated_imgs)
+
+        sorted_by_countries = defaultdict(list)
+
+        for img_id, yolo_annos in yolo_format.items():
+            img = self.db.get_image_by_id(img_id)
+            sorted_by_countries[img.country].append({
+                "image_id": img_id,
+                "annotations": yolo_annos,
+            })
+
+        train, val, test = [], [], []
+
+        for _, data in sorted_by_countries.items():
+            data = list(data)
+            random.shuffle(data)
+            n = len(data)
+            n_train = int(n * TrainConfig.TRAIN_SPLIT)
+            n_val = int(n * TrainConfig.VAL_SPLIT)
+
+            c_train = data[:n_train]
+            c_val = data[n_train:n_train + n_val]
+            c_test = data[n_train + n_val:]
+
+            train.extend(c_train)
+            val.extend(c_val)
+            test.extend(c_test)
+
+        dataset_foldername = f"dataset_{uuid4()[:8]}"
+        train_path = Path(f"{dataset_foldername}/train")
+        train_path.parent.mkdir(parents=True, exist_ok=True)
+        val_path = Path(f"{dataset_foldername}/val")
+        val_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path = Path(f"{dataset_foldername}/test")
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        # TODO: download_images()
+        # TODO: write_label_files()
+        # TODO: create_yaml()
