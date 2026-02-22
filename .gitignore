@@ -7,3 +7,5 @@ __pycache__/
 maps/
 *.pt
 .venv/
+datasets/
+runs/

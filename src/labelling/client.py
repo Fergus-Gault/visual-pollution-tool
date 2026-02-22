@@ -1,14 +1,12 @@
 from src.database import DatabaseManager
-from src.config import LSConfig, Config, TrainConfig
-from src.utils import setup_logger, get_prediction, convert_ls_to_yolo
+from src.config import LSConfig, Config
+from src.utils import setup_logger, get_prediction
+from src.pipeline import DatasetManager
 from dotenv import dotenv_values
 from label_studio_sdk import LabelStudio
 import requests
-from collections import defaultdict
 import time
-import random
-from pathlib import Path
-from uuid import uuid4
+import json
 logger = setup_logger(__name__)
 
 
@@ -20,6 +18,7 @@ class LabelStudioClient:
         self.db = db
         self.client = self._init_client()
         self.project_id = self._get_or_create_project()
+        self.dsm = DatasetManager(self.db)
 
         self.session = requests.Session()
         self.session.headers.update({
@@ -117,77 +116,60 @@ class LabelStudioClient:
 
     def _get_annotated_image_ids(self):
         url = f"{self.base_url}/api/tasks/"
-        headers = {
-            "Authorization": f"Token {self.api_key}",
-        }
-        params = {
-            "project": self.project_id,
-            "completed": "true",
-            "page_size": 100,
-        }
-        annotated = []
+        headers = {"Authorization": f"Token {self.api_key}"}
+
+        page = 1
+        page_size = 100
+        out = []
+
         while True:
+            params = {
+                "project": self.project_id,
+                "page": page,
+                "page_size": page_size,
+                "only_annotated": "true",
+                "fields": "all",
+            }
+
             resp = requests.get(url, headers=headers, params=params)
             resp.raise_for_status()
             data = resp.json()
 
-            annotated.extend(data["results"])
-
-            if not data.get("next"):
+            batch = data.get("tasks") or data.get("results") or []
+            if not batch:
                 break
 
-            url = data["next"]
-            params = None
+            for t in batch:
+                task_id = t.get("id")
+                task_data = t.get("data") or {}
 
-        out = []
-        for task in annotated:
-            image_id = task["data"].get("image_id")
-            annotations = task.get("annotations", [])
-            out.append({
-                "image_id": image_id,
-                "task_id": task["id"],
-                "annotations": annotations,
-            })
+                image_id = task_data.get("image_id")
+                image_url = task_data.get("image_url") or task_data.get(
+                    "image") or task_data.get("image_url")
+                annos = t.get("annotations") or []
+                if isinstance(annos, str):
+                    try:
+                        annos = json.loads(annos)
+                    except json.JSONDecodeError:
+                        annos = []
+                results = []
+                for a in annos:
+                    results.extend(a.get("result") or [])
+
+                if results:
+                    out.append({
+                        "image_id": image_id,
+                        "image_url": image_url,
+                        "task_id": task_id,
+                        "results": results,
+                    })
+
+            # Stop condition
+            if len(batch) < page_size:
+                break
+            page += 1
+
         return out
 
-    def download(self):
-        # TODO: Restructure and split up
-        annotated_imgs = self._get_annotated_image_ids()
-        yolo_format = convert_ls_to_yolo(annotated_imgs)
-
-        sorted_by_countries = defaultdict(list)
-
-        for img_id, yolo_annos in yolo_format.items():
-            img = self.db.get_image_by_id(img_id)
-            sorted_by_countries[img.country].append({
-                "image_id": img_id,
-                "annotations": yolo_annos,
-            })
-
-        train, val, test = [], [], []
-
-        for _, data in sorted_by_countries.items():
-            data = list(data)
-            random.shuffle(data)
-            n = len(data)
-            n_train = int(n * TrainConfig.TRAIN_SPLIT)
-            n_val = int(n * TrainConfig.VAL_SPLIT)
-
-            c_train = data[:n_train]
-            c_val = data[n_train:n_train + n_val]
-            c_test = data[n_train + n_val:]
-
-            train.extend(c_train)
-            val.extend(c_val)
-            test.extend(c_test)
-
-        dataset_foldername = f"dataset_{uuid4()[:8]}"
-        train_path = Path(f"{dataset_foldername}/train")
-        train_path.parent.mkdir(parents=True, exist_ok=True)
-        val_path = Path(f"{dataset_foldername}/val")
-        val_path.parent.mkdir(parents=True, exist_ok=True)
-        test_path = Path(f"{dataset_foldername}/test")
-        test_path.parent.mkdir(parents=True, exist_ok=True)
-        # TODO: download_images()
-        # TODO: write_label_files()
-        # TODO: create_yaml()
+    def fetch_annotations(self):
+        return self._get_annotated_image_ids()

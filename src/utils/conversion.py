@@ -41,34 +41,20 @@ def get_prediction(img, pred):
 
 
 def convert_ls_to_yolo(tasks):
-    # TODO: Restructure and split up
     out = {}
 
     for task in tasks:
-        data = task.get("data", {})
-        image_id = data.get("image_id")
-        if image_id is None:
+        image_id = task.get("image_id")
+        if not image_id:
             continue
 
-        annotations = task.get("annotations") or []
-        if not annotations:
-            out[image_id] = []
-            continue
-
-        annotations_sorted = sorted(
-            annotations,
-            key=lambda a: a.get("created_at") or "",
-            reverse=True,
-        )
-        ann = annotations_sorted[0]
-
-        yolo_lines = []
-
-        for item in ann.get("result", []):
+        results = task.get("results") or []
+        yolo_boxes = []
+        for item in results:
             if item.get("type") != "rectanglelabels":
                 continue
 
-            val = item.get("value", {})
+            val = item.get("value") or {}
             labels = val.get("rectanglelabels") or []
             if not labels:
                 continue
@@ -76,22 +62,28 @@ def convert_ls_to_yolo(tasks):
             label_name = labels[0]
             if label_name not in TrainConfig.LABELS:
                 continue
-            cls = TrainConfig.LABELS[label_name]
+            cls = int(TrainConfig.LABELS[label_name])
 
             x0 = float(val.get("x", 0.0)) / 100.0
             y0 = float(val.get("y", 0.0)) / 100.0
             w = float(val.get("width", 0.0)) / 100.0
             h = float(val.get("height", 0.0)) / 100.0
 
+            x0 = min(max(x0, 0.0), 1.0)
+            y0 = min(max(y0, 0.0), 1.0)
+            x1 = min(max(x0 + w, 0.0), 1.0)
+            y1 = min(max(y0 + h, 0.0), 1.0)
+
+            w = max(0.0, x1 - x0)
+            h = max(0.0, y1 - y0)
+            if w == 0.0 or h == 0.0:
+                continue
+
             xc = x0 + w / 2.0
             yc = y0 + h / 2.0
-            xc = min(max(xc, 0.0), 1.0)
-            yc = min(max(yc, 0.0), 1.0)
-            w = min(max(w, 0.0), 1.0)
-            h = min(max(h, 0.0), 1.0)
 
-            yolo_lines.append(f"{cls} {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}")
+            yolo_boxes.append([cls, xc, yc, w, h])
 
-        out[image_id] = yolo_lines
+        out[image_id] = yolo_boxes
 
     return out
