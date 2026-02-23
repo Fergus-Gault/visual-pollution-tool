@@ -17,7 +17,7 @@ class Scanner:
         self.apis: List[APIManager] = [KartaviewAPI(), MapillaryAPI()]
         self.osm = OSMApi()
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape"):
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False):
         # TODO: Allow dense city scanning, where number of subregions *5-10
         # will require delaying to ensure api limits respected
         region, gdf = self._get_or_create_region(
@@ -27,10 +27,10 @@ class Scanner:
         elif override:
             self._delete_and_rescan(region_id)
         else:
-            self._scan_region(region, gdf)
+            self._scan_region(region, gdf, dense_scan)
         return region
 
-    def _scan_region(self, region, gdf):
+    def _scan_region(self, region, gdf, dense_scan):
         image_count = 0
         region_bbox = BoundingBox(region.min_lng, region.min_lat,
                                   region.max_lng, region.max_lat)

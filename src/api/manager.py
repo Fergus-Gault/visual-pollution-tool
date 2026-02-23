@@ -26,7 +26,9 @@ class APIManager(ABC):
     def _fetch_subregion(self, subregion, session=None, **kwargs):
         pass
 
-    def fetch_region(self, bbox: BoundingBox, num_subregions):
+    def fetch_region(self, bbox: BoundingBox, num_subregions, dense_scan):
+        if dense_scan:
+            num_subregions = num_subregions * Config.DENSE_MULTIPLIER
         return self._fetch_subregion_points(bbox, num_subregions)
 
     def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):

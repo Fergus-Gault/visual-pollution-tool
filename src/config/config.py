@@ -10,6 +10,7 @@ class Config:
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 5
     DEBUG = False
+    DENSE_MULTIPLIER = 5
 
 
 class ArgsConfig:
@@ -17,6 +18,7 @@ class ArgsConfig:
     COLLECT_ONLY = "--collect-only"
     OVERRIDE = "--override"
     REGION_COLLECT = "--region-collect"
+    DENSE = "--dense"
     ARGS = [
         DEBUG,
         COLLECT_ONLY,
@@ -92,22 +94,26 @@ class MapConfig:
         "mapillary": MAPILLARY_COLOURS,
         "kartaview": KARTAVIEW_COLOURS,
     }
-    BILLBOARDS_COLOUR = "#ca0a0a"
-    BINS_COLOUR = "#1e43b3"
-    UTILITY_POLE_COLOUR = "#158619"
-    BARRIERS_COLOUR = "#5eb9e3"
-    POTHOLES_COLOUR = "#A0750A"
-    LITTER_COLOUR = "#8D05A1"
-    GRAFFITI_COLOUR = "#f87ace"
-    OTHER_COLOUR = "#203102"
+    BILLBOARDS_COLOUR = "#ffab40"
+    BINS_COLOUR = "#b551d8"
+    UTILITY_POLE_COLOUR = "#63ac00"
+    BARRIERS_COLOUR = "#f22750"
+    POTHOLES_COLOUR = "#0185c7"
+    GRAFFITI_COLOUR = "#ff7660"
+    ROAD_SIGN_COLOUR = "#9abfff"
+    SHOP_SIGN_COLOUR = "#4f5900"
+    MOBILE_AD_COLOUR = "#ffabcd"
+    OTHER_COLOUR = "#f0bd81"
     DETECTION_COLOURS = {
         "billboard": BILLBOARDS_COLOUR,
         "bin": BINS_COLOUR,
         "utility_pole": UTILITY_POLE_COLOUR,
         "barrier": BARRIERS_COLOUR,
         "pothole": POTHOLES_COLOUR,
-        "litter": LITTER_COLOUR,
         "graffiti": GRAFFITI_COLOUR,
+        "road_sign": ROAD_SIGN_COLOUR,
+        "shop_sign": SHOP_SIGN_COLOUR,
+        "mobile_advertisement": MOBILE_AD_COLOUR,
         "other": OTHER_COLOUR
     }
     TILES = "OpenStreetMap"
@@ -125,6 +131,10 @@ class LSConfig:
                 <Label value="billboard"/>
                 <Label value="utility_pole"/>
                 <Label value="bin"/>
+                <Label value="mobile_advertisement"/>
+                <Label value="pothole"/>
+                <Label value="shop_sign"/>
+                <Label value="road_sign"/>
             </RectangleLabels>
         </View>
         """.strip()
@@ -138,9 +148,17 @@ class LSConfig:
 
 
 class TrainConfig:
-    BASE_MODEL = "yolo26l.pt"
-    EPOCHS = 100
-    IMGSZ = 640
+    BASE_MODEL = "yolo26s.pt"
+    EPOCHS = 120
+    IMGSZ = 896
+    LR0 = 0.006
+    LRF = 0.01
+    WARMUP_EPOCHS = 4
+    MOSAIC = 0.5
+    MIXUP = 0.0
+    CLOSE_MOSAIC = 10
+    FREEZE = 10
+    PATIENCE = 80
     MODEL_VERSION = "v2"
     DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
     DEVICE = "cuda"
@@ -160,10 +178,29 @@ class TrainConfig:
     VAL_SPLIT = 0.2
     TEST_SPLIT = 0.1
     AUGMENTATIONS = [
-        A.Blur(blur_limit=5, p=0.3),
-        A.CLAHE(clip_limit=3.0, p=0.3),
-        A.Affine(rotate=(-30, 30), scale=(0.8, 1.2),
-                 keep_ratio=True, rotate_method="largest_box"),
-        A.HorizontalFlip(p=0.4),
-        A.VerticalFlip(p=0.2)
+        A.RandomBrightnessContrast(
+            brightness_limit=0.25, contrast_limit=0.25, p=0.35),
+        A.HueSaturationValue(
+            hue_shift_limit=8, sat_shift_limit=20, val_shift_limit=15, p=0.25),
+        A.RGBShift(r_shift_limit=10, g_shift_limit=10,
+                   b_shift_limit=10, p=0.15),
+        A.CLAHE(clip_limit=3.0, tile_grid_size=(8, 8), p=0.15),
+
+        A.GaussNoise(std_range=(0.1, 0.4), p=0.20),
+        A.ImageCompression(quality_range=(40, 95), p=0.20),
+        A.MotionBlur(blur_limit=(3, 7), p=0.15),
+
+        A.Affine(
+            scale=(0.85, 1.15),
+            translate_percent={"x": (-0.06, 0.06), "y": (-0.06, 0.06)},
+            rotate=(-10, 10),
+            shear={"x": (-5, 5), "y": (-3, 3)},
+            interpolation=1,
+            fit_output=False,
+            keep_ratio=True,
+            rotate_method="largest_box",
+            p=0.35,
+        ),
+        A.Perspective(scale=(0.02, 0.06), keep_size=True, p=0.15),
+        A.HorizontalFlip(p=0.5),
     ]

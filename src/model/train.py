@@ -14,7 +14,14 @@ def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None
         imgsz=imgsz or TrainConfig.IMGSZ,
         batch=-1,
         device=device or TrainConfig.DEVICE,
-        pretrained=True,
+        lr0=TrainConfig.LR0,
+        lrf=TrainConfig.LRF,
+        warmup_epochs=TrainConfig.WARMUP_EPOCHS,
+        mosaic=TrainConfig.MOSAIC,
+        mixup=TrainConfig.MIXUP,
+        close_mosaic=TrainConfig.CLOSE_MOSAIC,
+        freeze=TrainConfig.FREEZE,
+        patience=TrainConfig.PATIENCE,
         augmentations=augmentations or TrainConfig.AUGMENTATIONS,
     )
 

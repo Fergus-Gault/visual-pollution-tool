@@ -19,12 +19,13 @@ class Pipeline:
         self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
 
-    def run(self, file_path=None, args=None, collect_only=False, override=False, region_method="shape"):
+    def run(self, file_path=None, args=None, collect_only=False, override=False, region_method="shape", dense_scan=False):
         start = perf_counter()
         if file_path is not None:
             self._run_file(file_path, collect_only, override, region_method)
         else:
-            self._run_args(args, collect_only, override, region_method)
+            self._run_args(args, collect_only, override,
+                           region_method, dense_scan)
         end = perf_counter()
         logger.info(f"Completed pipeline in {(end-start):.2f} seconds.")
 
@@ -48,20 +49,21 @@ class Pipeline:
                 self._run_region(city, country, collect_only,
                                  override, region_method)
 
-    def _run_args(self, args, collect_only, override, region_method):
+    def _run_args(self, args, collect_only, override, region_method, dense_scan):
         city = args[1]
         try:
             country = args[2]
         except:
             country = None
-        self._run_region(city, country, collect_only, override, region_method)
+        self._run_region(city, country, collect_only,
+                         override, region_method, dense_scan)
 
-    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape"):
+    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape", dense_scan=False):
         coords = self.get_lnglat(city, country)
         if coords is None:
             return
         region = self.scan_region(
-            lng=coords[0], lat=coords[1], override=override, region_method=region_method)
+            lng=coords[0], lat=coords[1], override=override, region_method=region_method, dense_scan=dense_scan)
         if region is None:
             logger.warning(
                 f"Region for {city.strip()} already exists. Skipping.")
