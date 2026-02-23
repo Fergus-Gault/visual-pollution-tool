@@ -20,8 +20,8 @@ class MapillaryAPI(APIManager):
         params["access_token"] = self.access_token
         return self.http_client.get(endpoint, params=params, session=session)
 
-    def fetch_region(self, bbox, num_subregions=MapillaryConfig.SUBREGIONS):
-        return super().fetch_region(bbox, num_subregions)
+    def fetch_region(self, bbox, num_subregions=MapillaryConfig.SUBREGIONS, dense_scan=False):
+        return super().fetch_region(bbox, num_subregions, dense_scan)
 
     def _fetch_subregion(self, subregion: BoundingBox, session=None, **kwargs):
         params = ImageRequest(subregion).to_mapillary_params()

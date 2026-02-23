@@ -32,8 +32,8 @@ class Pipeline:
     def get_lnglat(self, city, country=None):
         return RegionManager.geolocate_city(city, country)
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape"):
-        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method)
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False):
+        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan)
 
     def run_inference(self, region):
         self.inference_manager.run_inference(region)

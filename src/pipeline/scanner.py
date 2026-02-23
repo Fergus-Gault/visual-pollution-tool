@@ -19,7 +19,7 @@ class Scanner:
 
     def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False):
         # TODO: Allow dense city scanning, where number of subregions *5-10
-        # will require delaying to ensure api limits respected
+        # will require delaying to ensure api limits respected (likely only for Kartaview)
         region, gdf = self._get_or_create_region(
             region_id, lng, lat, region_method, override=override)
         if region is None and not override:
@@ -36,7 +36,7 @@ class Scanner:
                                   region.max_lng, region.max_lat)
         self._fetch_osm_data(region, region_bbox)
         for api in self.apis:
-            api_images = api.fetch_region(region_bbox)
+            api_images = api.fetch_region(region_bbox, dense_scan=dense_scan)
             filter_images = self._filter_images(
                 region_bbox, api_images, gdf)
             api_image_count = self._store_images(filter_images, region, api)

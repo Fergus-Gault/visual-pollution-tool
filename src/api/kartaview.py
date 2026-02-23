@@ -21,8 +21,8 @@ class KartaviewAPI(APIManager):
     def send_request(self, endpoint, params=None, session=None):
         return self.http_client.get(endpoint, params=params, session=session, headers=self.default_headers)
 
-    def fetch_region(self, bbox, num_subregions=KartaviewConfig.SUBREGIONS):
-        return super().fetch_region(bbox, num_subregions)
+    def fetch_region(self, bbox, num_subregions=KartaviewConfig.SUBREGIONS, dense_scan=False):
+        return super().fetch_region(bbox, num_subregions, dense_scan)
 
     def _fetch_subregion(self, subregion: BoundingBox, session=None):
         params = ImageRequest(subregion).to_kartaview_params()

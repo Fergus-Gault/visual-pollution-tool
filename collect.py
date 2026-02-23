@@ -3,6 +3,8 @@ from src.config import Config, ArgsConfig
 import sys
 
 if __name__ == "__main__":
+    # TODO: Convert to argparse
+    # There is an issue with arguments causing errors if a country is not entered
     pipeline = Pipeline()
     args = sys.argv
     collect_only = False
