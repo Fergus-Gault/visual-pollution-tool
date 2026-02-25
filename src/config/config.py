@@ -8,7 +8,7 @@ class Config:
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
     RADIUS_KM = 1.0
     ENV_PATH = "./auth/.env"
-    REQ_TIMEOUT = 5
+    REQ_TIMEOUT = 3
     DEBUG = False
     DENSE_MULTIPLIER = 5
 
@@ -66,8 +66,8 @@ class DatabaseConfig:
     DEFAULT_DB_PATH = Path("data/db.sqlite3")
 
     @staticmethod
-    def get_sqlite_url():
-        path = DatabaseConfig.DEFAULT_DB_PATH
+    def get_sqlite_url(db_name=None):
+        path = db_name or DatabaseConfig.DEFAULT_DB_PATH
         path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite:///{path}"
 

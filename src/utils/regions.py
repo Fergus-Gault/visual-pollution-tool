@@ -78,6 +78,8 @@ class RegionManager:
         lng, lat = RegionManager.get_region_mid(bbox)
         location = RegionManager.geolocator.reverse(
             f"{lat}, {lng}", exactly_one=True, language="en", addressdetails=True)
+        if location is None:
+            return
         address = location.raw['address']
         return (address.get('city'), address.get('country'))
 

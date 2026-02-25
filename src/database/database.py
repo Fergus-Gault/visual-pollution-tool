@@ -2,7 +2,7 @@ from dateutil import parser as date_parser
 from dateutil.parser import ParserError
 from datetime import datetime, date
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 
 from src.api.models import BoundingBox
@@ -16,8 +16,8 @@ logger = setup_logger(__name__)
 
 
 class DatabaseManager:
-    def __init__(self):
-        db_url = DatabaseConfig.get_sqlite_url()
+    def __init__(self, db_name=None):
+        db_url = DatabaseConfig.get_sqlite_url(db_name)
 
         self.engine = create_engine(db_url)
         Base.metadata.create_all(self.engine)
@@ -56,14 +56,20 @@ class DatabaseManager:
 
     def delete_region(self, region_id):
         images = self.get_images_by_region(region_id)
-        for image in images:
-            self.images.delete(image.id)
+        ids = [img.id for img in images]
+        stmt = delete(Image).where(Image.id.in_(ids))
+        self.session.execute(stmt)
+        self.session.commit()
         detections = self.get_detections_by_region(region_id)
-        for det in detections:
-            self.detections.delete(det.id)
+        ids = [det.id for det in detections]
+        stmt = delete(Detection).where(Detection.id.in_(ids))
+        self.session.execute(stmt)
+        self.session.commit()
         osm = self.get_osm_features_by_region(region_id)
-        for osm_d in osm:
-            self.osm_features.delete(osm_d.id)
+        ids = [o.id for o in osm]
+        stmt = delete(OSMFeature).where(OSMFeature.id.in_(ids))
+        self.session.execute(stmt)
+        self.session.commit()
         return self.regions.delete(region_id)
 
     def get_region_bbox(self, region_id):

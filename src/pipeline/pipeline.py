@@ -50,20 +50,20 @@ class Pipeline:
                                  override, region_method)
 
     def _run_args(self, args, collect_only, override, region_method, dense_scan):
-        city = args[1]
+        city = args[0]
         try:
-            country = args[2]
+            country = args[1]
         except:
             country = None
         self._run_region(city, country, collect_only,
                          override, region_method, dense_scan)
 
-    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape", dense_scan=False):
+    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
         coords = self.get_lnglat(city, country)
         if coords is None:
             return
         region = self.scan_region(
-            lng=coords[0], lat=coords[1], override=override, region_method=region_method, dense_scan=dense_scan)
+            lng=coords[0], lat=coords[1], override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm)
         if region is None:
             logger.warning(
                 f"Region for {city.strip()} already exists. Skipping.")

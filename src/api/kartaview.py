@@ -9,8 +9,8 @@ logger = setup_logger(__name__)
 
 
 class KartaviewAPI(APIManager):
-    def __init__(self):
-        self.access_token = dotenv_values(
+    def __init__(self, access_token=None):
+        self.access_token = access_token or dotenv_values(
             Config.ENV_PATH).get("KARTAVIEW_ACCESS_TOKEN")
         if not self.access_token:
             logger.warning("Kartaview access token not found, continuing...")

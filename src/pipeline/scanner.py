@@ -12,12 +12,12 @@ logger = setup_logger(__name__)
 
 
 class Scanner:
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: DatabaseManager, apis=None):
         self.db = db
-        self.apis: List[APIManager] = [KartaviewAPI(), MapillaryAPI()]
+        self.apis: List[APIManager] = apis or [KartaviewAPI(), MapillaryAPI()]
         self.osm = OSMApi()
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False):
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
         # TODO: Allow dense city scanning, where number of subregions *5-10
         # will require delaying to ensure api limits respected (likely only for Kartaview)
         region, gdf = self._get_or_create_region(
@@ -27,14 +27,15 @@ class Scanner:
         elif override:
             self._delete_and_rescan(region_id)
         else:
-            self._scan_region(region, gdf, dense_scan)
+            self._scan_region(region, gdf, dense_scan, fetch_osm)
         return region
 
-    def _scan_region(self, region, gdf, dense_scan):
+    def _scan_region(self, region, gdf, dense_scan, fetch_osm):
         image_count = 0
         region_bbox = BoundingBox(region.min_lng, region.min_lat,
                                   region.max_lng, region.max_lat)
-        self._fetch_osm_data(region, region_bbox)
+        if fetch_osm:
+            self._fetch_osm_data(region, region_bbox)
         for api in self.apis:
             api_images = api.fetch_region(region_bbox, dense_scan=dense_scan)
             filter_images = self._filter_images(
@@ -191,6 +192,8 @@ class Scanner:
         elif lng is not None and lat is not None:
             bbox = RegionManager.get_region_bbox(lng, lat)
             city, country = RegionManager.geolocate_bbox(bbox)
+            if city is None and country is None:
+                return
             if region_method == "shape":
                 gdf = RegionManager.get_shape_file(city, country)
                 if gdf is not None:

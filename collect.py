@@ -1,29 +1,27 @@
 from src.pipeline import Pipeline
 from src.config import Config, ArgsConfig
 import sys
+import argparse
 
 if __name__ == "__main__":
     # TODO: Convert to argparse
     # There is an issue with arguments causing errors if a country is not entered
+    parser = argparse.ArgumentParser(
+        prog="Data collection", description="Collects street view imagery and OSM points")
+    parser.add_argument("fileorcity")
+    parser.add_argument("country")
+    parser.add_argument("--debug", "-d", action="store_true")
+    parser.add_argument("--collect-only", "-co", action="store_true")
+    parser.add_argument("--override", "-or", action="store_true")
+    parser.add_argument("--region-method", "-mr", default="shape")
+    parser.add_argument("--dense", "-d", action="store_true")
     pipeline = Pipeline()
-    args = sys.argv
-    collect_only = False
-    override = False
-    region_method = "shape"
-    dense_scan = False
-    if ArgsConfig.DEBUG in args:
+    args = parser.parse_args()
+    if args.debug:
         Config.DEBUG = True
-    if ArgsConfig.COLLECT_ONLY in args:
-        collect_only = True
-    if ArgsConfig.OVERRIDE in args:
-        override = True
-    if ArgsConfig.REGION_COLLECT in args:
-        region_method = "region"
-    if ArgsConfig.DENSE in args:
-        dense_scan = True
-    if ".csv" in args[1] or ".txt" in args[1]:
+    if ".csv" in args.fileorcity or ".txt" in args.fileorcity:
         pipeline.run(
-            file_path=args[1], collect_only=collect_only, override=override, region_method=region_method, dense_scan=dense_scan)
+            file_path=args.fileorcity, collect_only=args.collect_only, override=args.override, region_method=args.region_method, dense_scan=args.dense)
     else:
-        pipeline.run(args=args, collect_only=collect_only,
-                     override=override, region_method=region_method, dense_scan=dense_scan)
+        pipeline.run(args=[args.fileorcity, args.country], collect_only=args.collect_only,
+                     override=args.override, region_method=args.region_method, dense_scan=args.dense)
