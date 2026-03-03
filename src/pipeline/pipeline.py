@@ -19,26 +19,27 @@ class Pipeline:
         self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
 
-    def run(self, file_path=None, args=None, collect_only=False, override=False, region_method="shape", dense_scan=False):
+    def run(self, file_path=None, args=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=False):
         start = perf_counter()
         if file_path is not None:
-            self._run_file(file_path, collect_only, override, region_method)
+            self._run_file(file_path, collect_only, override,
+                           region_method, dense_scan, fetch_osm)
         else:
             self._run_args(args, collect_only, override,
-                           region_method, dense_scan)
+                           region_method, dense_scan, fetch_osm)
         end = perf_counter()
         logger.info(f"Completed pipeline in {(end-start):.2f} seconds.")
 
     def get_lnglat(self, city, country=None):
         return RegionManager.geolocate_city(city, country)
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False):
-        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan)
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=False):
+        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm)
 
     def run_inference(self, region):
         self.inference_manager.run_inference(region)
 
-    def _run_file(self, file_path, collect_only, override, region_method):
+    def _run_file(self, file_path, collect_only, override, region_method, dense_scan, fetch_osm):
         with open(file_path, "r") as file:
             for line in file:
                 country = None
@@ -47,18 +48,18 @@ class Pipeline:
                 except:
                     city = line
                 self._run_region(city, country, collect_only,
-                                 override, region_method)
+                                 override, region_method, dense_scan, fetch_osm)
 
-    def _run_args(self, args, collect_only, override, region_method, dense_scan):
+    def _run_args(self, args, collect_only, override, region_method, dense_scan, fetch_osm):
         city = args[0]
         try:
             country = args[1]
         except:
             country = None
         self._run_region(city, country, collect_only,
-                         override, region_method, dense_scan)
+                         override, region_method, dense_scan, fetch_osm)
 
-    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
+    def _run_region(self, city, country=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=False):
         coords = self.get_lnglat(city, country)
         if coords is None:
             return
