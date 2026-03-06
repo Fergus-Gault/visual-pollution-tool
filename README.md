@@ -66,9 +66,13 @@ python collect.py <file_or_city> [options]
 
 **Options**
 
+- `--country` - Pairs with the city for greater accuracy if multiple cities exist with the same name.
 - `--debug` - Enter debug mode.
 - `--collect-only` - Only collect imagery and metadata. Skip inference even if a model is provided.
 - `--override` - Force a rescan of a city even if it is already in the database. **Warning: This will delete the current data for that city in the database.**
+- `--region-method <method>` - Either "shape" or "region", defaults to "shape". Collect images using normal regions instead of shape files.
+- `--dense` - Scan a specific region with more subregions, only works for individual cities and not files.
+- `--fetch-osm` - Fetch OSM points for a region. Disabled by default due to API limitations.
 
 ### Data labelling
 
@@ -86,6 +90,14 @@ python label.py
 
 This will import 20 random images per region (configurable) to Label Studio, and attach any predictions from previously run inference.
 To continue labelling just restart Label Studio.
+
+### Inference
+
+If inference is not done during collection, it can be done afterwards using `run_inference.py`. This script takes two optional arguments, `--city` and `--country`. These can be used to run inference on specific regions, or on all regions if the arguments are excluded.
+
+```bash
+python run_inference.py --city <city (optional)> --country <country (optional)> 
+```
 
 ### Training pipeline
 

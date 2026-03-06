@@ -1,6 +1,5 @@
 from src.pipeline import Pipeline
-from src.config import Config, ArgsConfig
-import sys
+from src.config import Config
 import argparse
 
 if __name__ == "__main__":

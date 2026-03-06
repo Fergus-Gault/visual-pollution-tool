@@ -15,16 +15,6 @@ class Config:
 
 class ArgsConfig:
     DEBUG = "--debug"
-    COLLECT_ONLY = "--collect-only"
-    OVERRIDE = "--override"
-    REGION_COLLECT = "--region-collect"
-    DENSE = "--dense"
-    ARGS = [
-        DEBUG,
-        COLLECT_ONLY,
-        OVERRIDE,
-        REGION_COLLECT
-    ]
 
 
 class MapillaryConfig:
