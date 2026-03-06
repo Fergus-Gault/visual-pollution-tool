@@ -87,13 +87,12 @@ python label.py
 This will import 20 random images per region (configurable) to Label Studio, and attach any predictions from previously run inference.
 To continue labelling just restart Label Studio.
 
-### Training pipeline (indev)
+### Training pipeline
 
-The project provides three files for a training pipeline.
+The project provides two files for a training pipeline.
 
-- `export.py` - This downloads the annotated images from Label Studio into folders with labels and images split by the country of each image.
-- `augment.py` - This works with the output of `export.py` and splits the data fairly across countries, it then augments the training data. It will output a dataset in the YOLO format.
-- `train.py` - This takes a dataset in YOLO format and trains and evaluates a model.
+- `create_dataset.py` - This pulls annotated images from Label Studio (which must be running), and exports the bounding boxes and image paths to an .ndjson file, it also downloads the images.
+- `train.py` - This takes the generated .ndjson file as an input, and then trains a YOLO model. Images are augmented using the `albumentations` library, these augmentations can be modified in `src/config/config.py`
 
 ## Typical Workflow
 
