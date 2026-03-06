@@ -81,9 +81,8 @@ class InferenceManager:
                     image_mappings[image_path] = image
 
             except Exception as e:
-                logger.warning(
+                logger.debug(
                     f"Failed to download image {image.id} for batch: {e}")
-                # self.db.update_image_status(image.id, "failed")
 
         return image_paths, image_mappings
 
@@ -93,21 +92,29 @@ class InferenceManager:
         return results, image_paths, image_mappings
 
     def _process_results(self, results, image_paths, image_mapping):
+        all_detections = []
+        reviewed_ids = []
         num_detections = 0
         for result, path in zip(results, image_paths):
             image = image_mapping.get(path)
             if image:
                 try:
                     detections = self._extract_det_info(result)
-                    self._store_detection(image, detections)
-                    num_detections += len(detections)
+                    det_objects = self._build_detections(image, detections)
+                    all_detections.extend(det_objects)
+                    num_detections += len(det_objects)
+                    reviewed_ids.append(image.id)
                 except Exception as e:
                     logger.error(f"Failed to process image {image.id}: {e}")
                     self.db.update_image_status(image.id, "failed")
 
+        self.db.add_many_detections(all_detections)
+        for image_id in reviewed_ids:
+            self.db.update_image_status(image_id, "reviewed")
+
         return num_detections
 
-    def _store_detection(self, image, detections):
+    def _build_detections(self, image, detections):
         to_add = []
         for det in detections:
             class_id = det["class_id"]
@@ -118,9 +125,7 @@ class InferenceManager:
                 confidence=det["confidence"],
                 bbox=json.dumps(det["bbox"])
             ))
-        self.db.add_many_detections(to_add)
-        if to_add:
-            self.db.update_image_status(image.id, "reviewed")
+        return to_add
 
     def _extract_det_info(self, result):
         detections = []
