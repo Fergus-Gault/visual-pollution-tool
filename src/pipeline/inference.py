@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from src.model import YoloModel
 from src.utils import setup_logger
-from src.database import DatabaseManager
+from src.database import DatabaseManager, Detection
 from src.config import PipelineConfig
 
 logger = setup_logger(__name__)
@@ -108,15 +108,18 @@ class InferenceManager:
         return num_detections
 
     def _store_detection(self, image, detections):
+        to_add = []
         for det in detections:
             class_id = det["class_id"]
             label = self.model.get_class_names().get(class_id, str(class_id))
-            self.db.add_detection(
-                image=image,
+            to_add.append(Detection(
+                image_id=image.id,
                 label=label,
                 confidence=det["confidence"],
                 bbox=json.dumps(det["bbox"])
-            )
+            ))
+        self.db.add_many_detections(to_add)
+        if to_add:
             self.db.update_image_status(image.id, "reviewed")
 
     def _extract_det_info(self, result):

@@ -35,27 +35,42 @@ class RegionDetections:
             det_t = det.label
             detection_counts[det_t] = detection_counts.get(det_t, 0) + 1
 
+        grouped = {}
         for det in all_detections:
-            colour = MapConfig.DETECTION_COLOURS.get(
-                det.label, MapConfig.OTHER_COLOUR)
+            grouped.setdefault(det.image_id, []).append(det)
 
+        for _, dets in grouped.items():
+            image = dets[0].image
+            best = max(dets, key=lambda d: d.confidence)
+            colour = MapConfig.DETECTION_COLOURS.get(
+                best.label, MapConfig.OTHER_COLOUR)
+            opacity = 1.0 if len(dets) > 1 else 0.7
+
+            det_rows = "".join(
+                f"<p style='margin:2px 0'><b>{d.label}</b>: {d.confidence:.2f}</p>"
+                for d in sorted(dets, key=lambda d: d.confidence, reverse=True)
+            )
             popup_html = f"""
                         <div style="font-family: Arial; width: 250px;">
-                        <p style="margin: 10px 0 5px 0;"><a href="{det.image.url}" target="_blank">View Image</a></p>
-                        <p><b>Detection: {det.label}</b></p>
-                        <p>Confidence: {det.confidence}</p>
-                        <p>Location: ({det.image.lat:.6f}, {det.image.lng:.6f})</p>
-                        <p>Image Source: {det.image.source}</p>
+                        <p style="margin: 10px 0 5px 0;"><a href="{image.url}" target="_blank">View Image</a></p>
+                        {det_rows}
+                        <p>Location: ({image.lat:.6f}, {image.lng:.6f})</p>
+                        <p>Image Source: {image.source}</p>
                         </div>"""
 
-            folium.CircleMarker(location=[det.image.lat, det.image.lng],
+            tooltip = ", ".join(
+                f"{d.label} ({d.confidence:.2f})"
+                for d in sorted(dets, key=lambda d: d.confidence, reverse=True)
+            )
+
+            folium.CircleMarker(location=[image.lat, image.lng],
                                 radius=4,
-                                tooltip=f"{det.label}",
+                                tooltip=tooltip,
                                 popup=folium.Popup(popup_html, max_width=300),
                                 color=colour,
                                 fill=True,
                                 fillColor=colour,
-                                fillOpacity=0.7,
+                                fillOpacity=opacity,
                                 weight=1
                                 ).add_to(m)
 

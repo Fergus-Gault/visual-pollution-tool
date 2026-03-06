@@ -2,6 +2,7 @@ from src.model import YoloModel
 from src.database import DatabaseManager
 from src.pipeline import InferenceManager
 from src.utils import setup_logger
+from src.mapping import Mapper
 import argparse
 
 
@@ -10,6 +11,7 @@ if __name__ == "__main__":
     db = DatabaseManager()
     model = YoloModel()
     pipeline = InferenceManager(db, model)
+    mapper = Mapper(db)
 
     parser = argparse.ArgumentParser(
         prog="Inference", description="Runs inference either on city, country, or all regions")
@@ -29,4 +31,8 @@ if __name__ == "__main__":
         logger.warning("No regions found.")
 
     for region in regions:
+        logger.info(f"Running inference for {region.city}, {region.country}.")
         pipeline.run_inference(region)
+        detections_map = mapper.map_region_detections(region)
+        mapper.save(detections_map, region,
+                    map_type="region_detections", file_type="html")

@@ -142,6 +142,9 @@ class DatabaseManager:
                               confidence=confidence, bbox=bbox)
         self.detections.add(detection)
 
+    def add_many_detections(self, to_add):
+        self.detections.add_all(to_add)
+
     def delete_detection(self, detection_id):
         return self.detections.delete(detection_id)
 
