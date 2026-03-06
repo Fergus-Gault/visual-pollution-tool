@@ -60,6 +60,16 @@ class RegionRepo(BaseRepo[Region]):
     def get_by_name(self, name):
         return self.session.query(Region).filter_by(name=name).first()
 
+    def get_by_city_and_country(self, city=None, country=None):
+        if city is None and country is not None:
+            return self.session.query(Region).filter_by(country=country).all()
+        elif country is None and city is not None:
+            return self.session.query(Region).filter_by(city=city).all()
+        elif city is not None and country is not None:
+            return self.session.query(Region).filter_by(city=city, country=country).all()
+        else:
+            return None
+
 
 class ImageRepo(BaseRepo[Image]):
     def __init__(self, session: Session):

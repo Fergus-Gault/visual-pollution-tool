@@ -36,6 +36,9 @@ class DatabaseManager:
     def get_region(self, region_id):
         return self.regions.get_by_id(region_id)
 
+    def get_region_by_city_and_country(self, city, country):
+        return self.regions.get_by_city_and_country(city, country)
+
     def get_random_images(self, region_id, num_images):
         images = self.get_images_by_region(region_id)
         k = min(len(images), num_images)
