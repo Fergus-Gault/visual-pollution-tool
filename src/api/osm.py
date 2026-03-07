@@ -13,7 +13,8 @@ class OSMApi:
         self.endpoint = None
         self.api = self._connect()
         if self.api is None:
-            raise Exception("Failed to connect to any Overpass API.")
+            logger.warning(
+                "Failed to connect to any Overpass API. OSM collection will be skipped.")
 
     def _connect(self):
         for ep in OSMConfig.OSM_ENDPOINTS:
@@ -36,6 +37,8 @@ class OSMApi:
                 continue
 
     def fetch_region(self, bbox: BoundingBox):
+        if self.api is None:
+            return None
         subregions = RegionManager.get_subregions(
             bbox, OSMConfig.OSM_SUBREGIONS)
         data = {}

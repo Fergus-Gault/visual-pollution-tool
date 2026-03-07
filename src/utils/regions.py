@@ -3,7 +3,6 @@ from .logger import setup_logger
 from src.config import Config
 
 import numpy as np
-import random
 from typing import TYPE_CHECKING
 
 from geopy.geocoders import Nominatim
@@ -25,17 +24,8 @@ class RegionManager:
     def get_region_bbox(lng, lat):
         from src.api.models import BoundingBox
 
-        region_x = int(lng // RegionManager.region_size) * \
-            RegionManager.region_size
-        region_y = int(lat // RegionManager.region_size) * \
-            RegionManager.region_size
-
-        min_lng = region_x
-        min_lat = region_y
-        max_lng = region_x + RegionManager.region_size
-        max_lat = region_y + RegionManager.region_size
-
-        return BoundingBox(min_lng, min_lat, max_lng, max_lat)
+        half = RegionManager.region_size / 2
+        return BoundingBox(lng - half, lat - half, lng + half, lat + half)
 
     @staticmethod
     def get_subregions(bbox: BoundingBox, num_subregions):

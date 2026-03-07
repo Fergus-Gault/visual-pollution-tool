@@ -12,10 +12,10 @@ logger = setup_logger(__name__)
 
 
 class Pipeline:
-    def __init__(self):
+    def __init__(self, apis=None):
         self.db = DatabaseManager()
         self.model = YoloModel()
-        self.scanner = Scanner(self.db)
+        self.scanner = Scanner(self.db, apis=apis)
         self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
 
@@ -33,8 +33,8 @@ class Pipeline:
     def get_lnglat(self, city, country=None):
         return RegionManager.geolocate_city(city, country)
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=False):
-        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm)
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=False, city=None, country=None, population=None):
+        return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm, city=city, country=country, population=population)
 
     def run_inference(self, region):
         self.inference_manager.run_inference(region)
@@ -63,11 +63,17 @@ class Pipeline:
         coords = self.get_lnglat(city, country)
         if coords is None:
             return
+        self._run_region_coords(lng=coords[0], lat=coords[1], city=city, country=country,
+                                collect_only=collect_only, override=override,
+                                region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm)
+
+    def _run_region_coords(self, lng, lat, city=None, country=None, population=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=False):
         region = self.scan_region(
-            lng=coords[0], lat=coords[1], override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm)
+            lng=lng, lat=lat, override=override, region_method=region_method,
+            dense_scan=dense_scan, fetch_osm=fetch_osm, city=city, country=country, population=population)
         if region is None:
             logger.warning(
-                f"Region for {city.strip()} already exists. Skipping.")
+                f"Region for {city or lng},{country or lat} already exists. Skipping.")
             return
         region_map = self.mapper.map_region_images(region)
         self.mapper.save(region_map, region,

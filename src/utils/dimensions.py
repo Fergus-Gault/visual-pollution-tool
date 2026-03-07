@@ -28,19 +28,25 @@ class Dimensioner:
             return (param, False)
 
     @staticmethod
-    def update_dimensions(params_list):
+    def _make_session():
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=PipelineConfig.NUM_WORKERS,
-            pool_maxsize=PipelineConfig.NUM_WORKERS*4,
+            pool_connections=PipelineConfig.DIMENSION_WORKERS,
+            pool_maxsize=PipelineConfig.DIMENSION_WORKERS * 4,
             max_retries=0
         )
         session.mount('http://', adapter)
         session.mount('https://', adapter)
+        return session
+
+    @staticmethod
+    def update_dimensions(params_list, session=None):
+        if session is None:
+            session = Dimensioner._make_session()
 
         cleaned_params = []
 
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=PipelineConfig.DIMENSION_WORKERS) as executor:
             future_to_image = {
                 executor.submit(Dimensioner._update_single, param, session): param for param in params_list
             }

@@ -3,14 +3,17 @@ import albumentations as A
 
 
 class Config:
-    BBOX_OFFSET = 0.025
-    MAX_BBOX_AREA = 0.01
+    BBOX_OFFSET = 0.05
+    MAX_BBOX_AREA = 0.04
     MAX_OFFSET = (MAX_BBOX_AREA ** 0.5) / 2
+    MAX_SHAPE_BBOX_AREA = 1.0
     RADIUS_KM = 1.0
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 3
     DEBUG = False
     DENSE_MULTIPLIER = 5
+    MIN_POPULATION = 100000
+    DEFAULT_CSV = "data/worldcities.csv"
 
 
 class ArgsConfig:
@@ -53,13 +56,14 @@ class OSMConfig:
 
 
 class DatabaseConfig:
-    DEFAULT_DB_PATH = Path("data/db.sqlite3")
-
     @staticmethod
-    def get_sqlite_url(db_name=None):
-        path = db_name or DatabaseConfig.DEFAULT_DB_PATH
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return f"sqlite:///{path}"
+    def get_postgres_url():
+        from dotenv import dotenv_values
+        env = dotenv_values(Config.ENV_PATH)
+        url = env.get("DATABASE_URL")
+        if not url:
+            raise ValueError(f"DATABASE_URL not set in {Config.ENV_PATH}")
+        return url
 
 
 class YoloConfig:
@@ -72,9 +76,16 @@ class YoloConfig:
 
 class PipelineConfig:
     IMAGE_STORAGE_CHUNK_SIZE = 2000
-    BATCH_SIZE = 16
+    BATCH_SIZE = 32
     DOWNLOAD_TIMEOUT = 5
     NUM_WORKERS = 40
+    KARTAVIEW_WORKERS = 20
+    MAPILLARY_WORKERS = 40
+    INFERENCE_WORKERS = 20
+    DIMENSION_WORKERS = 20
+    REGION_WORKERS = 4
+    MAPILLARY_RATE_LIMIT = 9000
+    KARTAVIEW_RATE_LIMIT = 1000
 
 
 class MapConfig:
@@ -138,7 +149,8 @@ class LSConfig:
 
 
 class TrainConfig:
-    BASE_MODEL = "yolo26s.pt"
+    BASE_MODEL = "yolo26m.pt"
+    WANDB_PROJECT = "dissertation"
     EPOCHS = 120
     IMGSZ = 896
     LR0 = 0.006

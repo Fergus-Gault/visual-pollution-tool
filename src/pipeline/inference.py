@@ -41,7 +41,7 @@ class InferenceManager:
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=PipelineConfig.INFERENCE_WORKERS) as executor:
             future_to_detection = {
                 executor.submit(self._process_batch, batch, idx): (idx, batch) for idx, batch in enumerate(batches)
             }
@@ -88,6 +88,8 @@ class InferenceManager:
 
     def _process_batch(self, batch, idx):
         image_paths, image_mappings = self._temp_download(batch, idx)
+        if not image_paths:
+            return [], [], {}
         results = self.model.predict(source=image_paths)
         return results, image_paths, image_mappings
 
@@ -109,8 +111,7 @@ class InferenceManager:
                     self.db.update_image_status(image.id, "failed")
 
         self.db.add_many_detections(all_detections)
-        for image_id in reviewed_ids:
-            self.db.update_image_status(image_id, "reviewed")
+        self.db.bulk_update_image_status(reviewed_ids, "reviewed")
 
         return num_detections
 

@@ -3,7 +3,7 @@ from src.config import TrainConfig
 from pathlib import Path
 
 
-def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None, augmentations=None):
+def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None, augmentations=None, project=None, name=None):
     data_path = Path(path or TrainConfig.DATA_PATH)
 
     model = YOLO(base_model or TrainConfig.BASE_MODEL)
@@ -23,6 +23,8 @@ def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None
         freeze=TrainConfig.FREEZE,
         patience=TrainConfig.PATIENCE,
         augmentations=augmentations or TrainConfig.AUGMENTATIONS,
+        project=project or TrainConfig.WANDB_PROJECT,
+        name=name,
     )
 
     metrics = model.val(data=str(data_path))

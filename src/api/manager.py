@@ -26,6 +26,9 @@ class APIManager(ABC):
     def _fetch_subregion(self, subregion, session=None, **kwargs):
         pass
 
+    def _num_workers(self):
+        return PipelineConfig.NUM_WORKERS
+
     def fetch_region(self, bbox: BoundingBox, num_subregions, dense_scan):
         if dense_scan:
             num_subregions = num_subregions * Config.DENSE_MULTIPLIER
@@ -33,10 +36,11 @@ class APIManager(ABC):
 
     def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):
 
+        num_workers = self._num_workers()
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
-            pool_connections=PipelineConfig.NUM_WORKERS,
-            pool_maxsize=PipelineConfig.NUM_WORKERS * 4,
+            pool_connections=num_workers,
+            pool_maxsize=num_workers * 4,
             max_retries=0
         )
         session.mount('http://', adapter)
@@ -46,7 +50,7 @@ class APIManager(ABC):
             bbox, num_subregions=num_subregions)
         logger.info(f"Generated {num_subregions} subregions for the region.")
         images = []
-        with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
             future_to_fetch = {
                 executor.submit(self._fetch_subregion, subregion, session): subregion for subregion in subregions
             }
