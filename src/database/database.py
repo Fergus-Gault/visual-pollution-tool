@@ -1,8 +1,10 @@
 from dateutil import parser as date_parser
 from dateutil.parser import ParserError
 from datetime import datetime, date
+import unicodedata
 
 from sqlalchemy import create_engine, delete
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 
 from src.api.models import BoundingBox
@@ -16,10 +18,10 @@ logger = setup_logger(__name__)
 
 
 class DatabaseManager:
-    def __init__(self, db_name=None):
-        db_url = DatabaseConfig.get_sqlite_url(db_name)
+    def __init__(self):
+        db_url = DatabaseConfig.get_postgres_url()
 
-        self.engine = create_engine(db_url)
+        self.engine = create_engine(db_url, poolclass=NullPool)
         Base.metadata.create_all(self.engine)
 
         SessionLocal = sessionmaker(bind=self.engine)
@@ -44,18 +46,23 @@ class DatabaseManager:
         k = min(len(images), num_images)
         return random.sample(images, k=k)
 
-    def add_region(self, bbox: BoundingBox, city=None, country=None, override=False):
+    def add_region(self, bbox: BoundingBox, city=None, country=None, population=None):
         name = RegionManager.generate_region_name(bbox)
-        existing_region = self.regions.get_by_name(name)
-        if existing_region and not override:
-            return None
-        elif existing_region and override:
-            return existing_region
-
+        city = unicodedata.normalize('NFC', city) if city else city
+        country = unicodedata.normalize('NFC', country) if country else country
         region = Region(name=name, min_lng=bbox.min_lng, min_lat=bbox.min_lat,
-                        max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country,)
+                        max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country, population=population)
         self.regions.add(region)
         return region
+
+    def get_region_by_name(self, name):
+        return self.regions.get_by_name(name)
+
+    def update_osm_fetched(self, region_id, value: bool):
+        region = self.get_region(region_id)
+        if region:
+            region.osm_fetched = value
+            self.session.commit()
 
     def delete_region(self, region_id):
         images = self.get_images_by_region(region_id)
@@ -113,6 +120,9 @@ class DatabaseManager:
         except:
             return None
 
+    def add_many_images(self, images):
+        self.images.add_many(images)
+
     def update_image_status(self, image_id, status):
         return self.images.update_status(image_id, status)
 
@@ -143,7 +153,10 @@ class DatabaseManager:
         self.detections.add(detection)
 
     def add_many_detections(self, to_add):
-        self.detections.add_all(to_add)
+        self.detections.add_many(to_add)
+
+    def bulk_update_image_status(self, image_ids, status):
+        self.images.bulk_update_status(image_ids, status)
 
     def delete_detection(self, detection_id):
         return self.detections.delete(detection_id)

@@ -1,8 +1,10 @@
+import uuid
 from abc import ABC
+from datetime import datetime, timezone
 from typing import Generic, TypeVar, Type, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 
 from .models import Region, Image, Detection, OSMFeature
 from src.utils import setup_logger
@@ -78,6 +80,27 @@ class ImageRepo(BaseRepo[Image]):
     def get_by_region(self, region_id):
         return self.session.query(Image).filter_by(region_id=region_id).all()
 
+    def add_many(self, images: List[Image]):
+        if not images:
+            return
+        rows = [{
+            'id': img.id or str(uuid.uuid4()),
+            'region_id': img.region_id,
+            'id_from_source': img.id_from_source,
+            'lng': img.lng,
+            'lat': img.lat,
+            'source_captured_at': img.source_captured_at,
+            'url': img.url,
+            'source': img.source,
+            'status': img.status or 'unreviewed',
+            'width': img.width,
+            'height': img.height,
+        } for img in images]
+        stmt = postgresql_insert(Image.__table__).values(rows)
+        stmt = stmt.on_conflict_do_nothing(index_elements=['id_from_source'])
+        self.session.execute(stmt)
+        self.session.commit()
+
     def get_by_status(self, status, region_id=None):
         query = self.session.query(Image).filter_by(status=status)
         if region_id is not None:
@@ -91,6 +114,13 @@ class ImageRepo(BaseRepo[Image]):
         image.status = status
         self.commit()
         return True
+
+    def bulk_update_status(self, image_ids: List[str], status: str):
+        if not image_ids:
+            return
+        self.session.query(Image).filter(Image.id.in_(image_ids)).update(
+            {Image.status: status}, synchronize_session=False)
+        self.commit()
 
     def update_dimensions(self, image_id, width, height):
         image = self.get_by_id(image_id)
@@ -127,6 +157,23 @@ class DetectionRepo(BaseRepo[Detection]):
     def get_detections_by_image(self, image_id):
         return self.session.query(Detection).filter_by(image_id=image_id).all()
 
+    def add_many(self, detections: List[Detection]):
+        if not detections:
+            return
+        rows = [{
+            'id': det.id or str(uuid.uuid4()),
+            'image_id': det.image_id,
+            'label': det.label,
+            'confidence': det.confidence,
+            'bbox': det.bbox,
+            'manual_reviewed': det.manual_reviewed or 0,
+            'time_of_detection': det.time_of_detection or datetime.now(timezone.utc),
+        } for det in detections]
+        stmt = postgresql_insert(Detection.__table__).values(rows)
+        stmt = stmt.on_conflict_do_nothing(index_elements=['id'])
+        self.session.execute(stmt)
+        self.session.commit()
+
 
 class OSMFeatureRepo(BaseRepo[OSMFeature]):
     def __init__(self, session: Session):
@@ -136,8 +183,7 @@ class OSMFeatureRepo(BaseRepo[OSMFeature]):
         return self.session.query(OSMFeature).filter(region_id == region_id)
 
     def add_many_osm(self, entities: List[dict]):
-        stmt = sqlite_insert(OSMFeature.__table__).values(entities)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["osm_id"])
-
+        stmt = postgresql_insert(OSMFeature.__table__).values(entities)
+        stmt = stmt.on_conflict_do_nothing()
         self.session.execute(stmt)
         self.session.commit()

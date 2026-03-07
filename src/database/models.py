@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -20,6 +20,8 @@ class Region(Base):
     scanned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     city = Column(String, nullable=True)
     country = Column(String, nullable=True)
+    population = Column(Integer, nullable=True)
+    osm_fetched = Column(Boolean, nullable=False, default=False)
 
     images = relationship("Image", back_populates="region",
                           cascade="all, delete-orphan")
