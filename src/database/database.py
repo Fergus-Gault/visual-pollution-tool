@@ -3,7 +3,7 @@ from dateutil.parser import ParserError
 from datetime import datetime, date
 import unicodedata
 
-from sqlalchemy import create_engine, delete
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 
@@ -38,6 +38,9 @@ class DatabaseManager:
     def get_region(self, region_id):
         return self.regions.get_by_id(region_id)
 
+    def get_region_by_point(self, lng, lat):
+        return self.regions.get_by_point(lng, lat)
+
     def get_region_by_city_and_country(self, city, country):
         return self.regions.get_by_city_and_country(city, country)
 
@@ -65,20 +68,13 @@ class DatabaseManager:
             self.session.commit()
 
     def delete_region(self, region_id):
-        images = self.get_images_by_region(region_id)
-        ids = [img.id for img in images]
-        stmt = delete(Image).where(Image.id.in_(ids))
-        self.session.execute(stmt)
-        self.session.commit()
-        detections = self.get_detections_by_region(region_id)
-        ids = [det.id for det in detections]
-        stmt = delete(Detection).where(Detection.id.in_(ids))
-        self.session.execute(stmt)
-        self.session.commit()
-        osm = self.get_osm_features_by_region(region_id)
-        ids = [o.id for o in osm]
-        stmt = delete(OSMFeature).where(OSMFeature.id.in_(ids))
-        self.session.execute(stmt)
+        image_ids_subq = select(Image.id).where(
+            Image.region_id == region_id).scalar_subquery()
+        self.session.execute(delete(Detection).where(
+            Detection.image_id.in_(image_ids_subq)))
+        self.session.execute(delete(Image).where(Image.region_id == region_id))
+        self.session.execute(delete(OSMFeature).where(
+            OSMFeature.region_id == region_id))
         self.session.commit()
         return self.regions.delete(region_id)
 

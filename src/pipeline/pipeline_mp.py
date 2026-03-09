@@ -18,7 +18,7 @@ def _run_region(row, pipeline, collect_only, override, region_method, dense_scan
     except (ValueError, TypeError):
         lng, lat = None, None
 
-    if city and country:
+    if (lng is None or lat is None) and city and country:
         coords = RegionManager.geolocate_city(city, country)
         if coords is not None:
             lng, lat = coords

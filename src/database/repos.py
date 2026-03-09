@@ -62,6 +62,12 @@ class RegionRepo(BaseRepo[Region]):
     def get_by_name(self, name):
         return self.session.query(Region).filter_by(name=name).first()
 
+    def get_by_point(self, lng, lat):
+        return self.session.query(Region).filter(
+            Region.min_lng <= lng, Region.max_lng >= lng,
+            Region.min_lat <= lat, Region.max_lat >= lat
+        ).first()
+
     def get_by_city_and_country(self, city=None, country=None):
         if city is None and country is not None:
             return self.session.query(Region).filter_by(country=country).all()

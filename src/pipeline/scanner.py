@@ -186,6 +186,11 @@ class Scanner:
                 "Tried to create a region where both region_id and lng and lat are None")
 
         bbox = RegionManager.get_region_bbox(lng, lat)
+        if not override:
+            initial_existing = self.db.get_region_by_name(
+                RegionManager.generate_region_name(bbox)) or self.db.get_region_by_point(lng, lat)
+            if initial_existing is not None:
+                return None, None
         if city is None or country is None:
             geocoded_city, geocoded_country = RegionManager.geolocate_bbox(
                 bbox)
