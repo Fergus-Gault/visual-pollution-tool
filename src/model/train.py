@@ -30,6 +30,4 @@ def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None
         project=project or TrainConfig.WANDB_PROJECT,
         name=name,
     )
-
-    metrics = model.val(data=str(data_path))
-    return results, metrics
+    return results
