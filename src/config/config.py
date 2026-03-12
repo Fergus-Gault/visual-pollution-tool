@@ -139,13 +139,13 @@ class LSConfig:
             </RectangleLabels>
         </View>
         """.strip()
-    PROJECT_TITLE = "VP Detection"
-    IMAGES_PER_REGION = 20
+    PROJECT_TITLE = "VP Detection Fine-tuning"
+    IMAGES_PER_COUNTRY = 10
     MAX_RETRIES = 3
     BATCH_SIZE = 1000
     TIME_BETWEEN_BATCHES = 0.2
     REQ_TIMEOUT_S = 2
-    MODEL_VERSION = "yolo_11_m"
+    MODEL_VERSION = "yolo_26_m"
 
 
 class TrainConfig:

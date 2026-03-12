@@ -1,10 +1,14 @@
 from ultralytics import YOLO
 from src.config import TrainConfig
 from pathlib import Path
+import wandb
 
 
 def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None, augmentations=None, project=None, name=None):
     data_path = Path(path or TrainConfig.DATA_PATH)
+
+    wandb.init(project=project or TrainConfig.WANDB_PROJECT,
+               name=name, resume="allow")
 
     model = YOLO(base_model or TrainConfig.BASE_MODEL)
 

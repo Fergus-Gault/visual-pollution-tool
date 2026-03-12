@@ -3,7 +3,7 @@ from dateutil.parser import ParserError
 from datetime import datetime, date
 import unicodedata
 
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, select, func
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 
@@ -48,6 +48,25 @@ class DatabaseManager:
         images = self.get_images_by_region(region_id)
         k = min(len(images), num_images)
         return random.sample(images, k=k)
+
+    def get_random_images_by_country(self, num_images: int):
+        subq = (
+            select(
+                Image.id.label("id"),
+                func.row_number().over(
+                    partition_by=Region.country,
+                    order_by=func.random()
+                ).label("rn")
+            )
+            .join(Region, Image.region_id == Region.id)
+            .subquery()
+        )
+        sampled_ids = self.session.scalars(
+            select(subq.c.id).where(subq.c.rn <= num_images)
+        ).all()
+        return self.session.scalars(
+            select(Image).where(Image.id.in_(sampled_ids))
+        ).all()
 
     def add_region(self, bbox: BoundingBox, city=None, country=None, population=None):
         name = RegionManager.generate_region_name(bbox)

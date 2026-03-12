@@ -90,27 +90,24 @@ class LabelStudioClient:
 
     def _make_task_payload(self):
         tasks = []
-        regions = self.db.get_all_regions()
         logger.info("Creating tasks payload.")
-        for region in regions:
-            images = self.db.get_random_images(
-                region.id, LSConfig.IMAGES_PER_REGION)
+        images = self.db.get_random_images_by_country(
+            LSConfig.IMAGES_PER_COUNTRY)
+        for img in images:
+            task = {"data": {"image": img.url, "image_id": img.id}}
 
-            for img in images:
-                task = {"data": {"image": img.url, "image_id": img.id}}
+            preds = self.db.get_detections_by_image(img.id) or []
+            if preds:
+                results = [get_prediction(img, p) for p in preds]
+                task_score = float(max(float(p.confidence) for p in preds))
 
-                preds = self.db.get_detections_by_image(img.id) or []
-                if preds:
-                    results = [get_prediction(img, p) for p in preds]
-                    task_score = float(max(float(p.confidence) for p in preds))
+                task["predictions"] = [{
+                    "model_version": LSConfig.MODEL_VERSION,
+                    "score": task_score,
+                    "result": results,
+                }]
 
-                    task["predictions"] = [{
-                        "model_version": LSConfig.MODEL_VERSION,
-                        "score": task_score,
-                        "result": results,
-                    }]
-
-                tasks.append(task)
+            tasks.append(task)
 
         return tasks
 

@@ -10,3 +10,4 @@ maps/
 datasets/
 runs/
 cache/
+wandb/
