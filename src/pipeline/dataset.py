@@ -1,6 +1,6 @@
 from src.utils import convert_ls_to_yolo, setup_logger
 from src.config import TrainConfig, PipelineConfig
-from collections import defaultdict
+from collections import defaultdict, Counter
 import random
 import json
 from pathlib import Path
@@ -50,27 +50,91 @@ class DatasetManager:
         return sorted_by_country
 
     def _split_dataset(self, sorted_countries):
-        train, val, test = [], [], []
-        for _, data in sorted_countries.items():
-            data = list(data)
-            random.shuffle(data)
-            n = len(data)
-            n_train = int(n * TrainConfig.TRAIN_SPLIT)
-            n_val = int(n * TrainConfig.VAL_SPLIT)
+        all_data = [item for country_data in sorted_countries.values()
+                    for item in country_data]
+        n = len(all_data)
+        if n == 0:
+            return {"train": [], "val": [], "test": []}
 
-            c_train = data[:n_train]
-            c_val = data[n_train:n_train + n_val]
-            c_test = data[n_train + n_val:]
+        n_train = int(n * TrainConfig.TRAIN_SPLIT)
+        n_val = int(n * TrainConfig.VAL_SPLIT)
+        n_test = n - n_train - n_val
 
-            train.extend(c_train)
-            val.extend(c_val)
-            test.extend(c_test)
-
-        return {
-            "train": train,
-            "val": val,
-            "test": test,
+        target_sizes = {
+            "train": n_train,
+            "val": n_val,
+            "test": n_test,
         }
+        split_ratios = {
+            "train": TrainConfig.TRAIN_SPLIT,
+            "val": TrainConfig.VAL_SPLIT,
+            "test": TrainConfig.TEST_SPLIT,
+        }
+
+        rng = random.Random(42)
+        data = list(all_data)
+        rng.shuffle(data)
+        data.sort(key=lambda rec: len(
+            rec.get("annotations", {}).get("boxes", [])), reverse=True)
+
+        total_class_counts = Counter()
+        image_class_counts = []
+        for rec in data:
+            class_counts = Counter()
+            for box in rec.get("annotations", {}).get("boxes", []):
+                if not box:
+                    continue
+                class_counts[int(box[0])] += 1
+            image_class_counts.append(class_counts)
+            total_class_counts.update(class_counts)
+
+        target_class_counts = {
+            split: {
+                cls: total * split_ratios[split]
+                for cls, total in total_class_counts.items()
+            }
+            for split in ("train", "val", "test")
+        }
+
+        split_data = {"train": [], "val": [], "test": []}
+        current_class_counts = {
+            "train": Counter(),
+            "val": Counter(),
+            "test": Counter(),
+        }
+
+        for rec, class_counts in zip(data, image_class_counts):
+            best_split = None
+            best_score = None
+
+            for split in ("train", "val", "test"):
+                if len(split_data[split]) >= target_sizes[split]:
+                    continue
+
+                score = 0.0
+                for cls, count in class_counts.items():
+                    deficit = target_class_counts[split][cls] - \
+                        current_class_counts[split][cls]
+                    if deficit > 0:
+                        score += min(deficit, count)
+
+                remaining_capacity = target_sizes[split] - \
+                    len(split_data[split])
+                tiebreak = remaining_capacity / max(1, target_sizes[split])
+                candidate = (score, tiebreak)
+
+                if best_score is None or candidate > best_score:
+                    best_score = candidate
+                    best_split = split
+
+            if best_split is None:
+                best_split = min(("train", "val", "test"),
+                                 key=lambda s: len(split_data[s]))
+
+            split_data[best_split].append(rec)
+            current_class_counts[best_split].update(class_counts)
+
+        return split_data
 
     def _create_ndjson(self, ds_split):
 

@@ -149,9 +149,24 @@ class LabelStudioClient:
                         annos = json.loads(annos)
                     except json.JSONDecodeError:
                         annos = []
-                results = []
+
+                annotation_results = []
                 for a in annos:
-                    results.extend(a.get("result") or [])
+                    annotation_results.extend(a.get("result") or [])
+
+                annotation_ids = {
+                    r.get("id") for r in annotation_results if r.get("id") is not None
+                }
+
+                prediction_results = []
+                for pred in (t.get("predictions") or []):
+                    for r in (pred.get("result") or []):
+                        rid = r.get("id")
+                        if rid is not None and rid in annotation_ids:
+                            continue
+                        prediction_results.append(r)
+
+                results = annotation_results + prediction_results
 
                 if results:
                     out.append({

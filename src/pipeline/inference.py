@@ -1,5 +1,6 @@
 import tempfile
 import os
+import shutil
 import urllib.request
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -55,6 +56,11 @@ class InferenceManager:
 
         total_detections = self._process_results(
             all_results, all_image_paths, all_image_mappings)
+
+        temp_dirs = {os.path.dirname(p) for p in all_image_paths}
+        for d in temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
+
         return total_detections
 
     def _temp_download(self, batch, idx):

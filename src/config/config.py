@@ -69,7 +69,7 @@ class DatabaseConfig:
 class YoloConfig:
     DEFAULT_MODEL_PATH = Path("data/model/best.pt")
     CONF_THRESHOLD = 0.50
-    IMGSZ = 640
+    IMGSZ = 1024
     IOU = 0.7
     STREAM = True
 
@@ -152,18 +152,18 @@ class TrainConfig:
     BASE_MODEL = "yolo26m.pt"
     WANDB_PROJECT = "dissertation"
     WANDB_NAME = "yolo_26_m"
-    EPOCHS = 200
+    EPOCHS = 220
     IMGSZ = 1024
     LR0 = 0.003
     LRF = 0.01
-    WARMUP_EPOCHS = 4
+    WARMUP_EPOCHS = 5
     MOSAIC = 0.5
     MIXUP = 0.0
-    CLOSE_MOSAIC = 10
+    CLOSE_MOSAIC = 15
     FREEZE = 0
     PATIENCE = 50
     BATCH_SIZE = 16
-    WORKERS = 4
+    WORKERS = 8
     MODEL_VERSION = "v2"
     DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
     DEVICE = "cuda"
