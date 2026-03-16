@@ -163,6 +163,7 @@ class TrainConfig:
     FREEZE = 0
     PATIENCE = 50
     BATCH_SIZE = 16
+    WORKERS = 4
     MODEL_VERSION = "v2"
     DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
     DEVICE = "cuda"

@@ -11,8 +11,9 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", "-w", default=None)
     parser.add_argument("--name", "-n", default=None)
     parser.add_argument("--batch", "-bs", default=None)
+    parser.add_argument("--workers", default=None)
     args = parser.parse_args()
 
     train_model(path=args.path, base_model=args.base_model,
                 epochs=args.epochs, imgsz=args.imgsz, device=args.device,
-                project=args.wandb_project, name=args.name, batch=args.batch)
+                project=args.wandb_project, name=args.name, batch=args.batch, workers=args.workers)

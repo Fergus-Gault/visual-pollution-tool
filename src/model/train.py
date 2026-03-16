@@ -4,7 +4,7 @@ from pathlib import Path
 import wandb
 
 
-def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None, augmentations=None, project=None, name=None, batch=None):
+def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None, augmentations=None, project=None, name=None, batch=None, workers=None):
     data_path = Path(path or TrainConfig.DATA_PATH)
 
     model = YOLO(base_model or TrainConfig.BASE_MODEL)
@@ -15,7 +15,7 @@ def train_model(path=None, base_model=None, epochs=None, imgsz=None, device=None
         imgsz=imgsz or TrainConfig.IMGSZ,
         batch=batch or TrainConfig.BATCH_SIZE,
         device=device or TrainConfig.DEVICE,
-        workers=4,
+        workers=workers or TrainConfig.WORKERS,
         lr0=TrainConfig.LR0,
         lrf=TrainConfig.LRF,
         warmup_epochs=TrainConfig.WARMUP_EPOCHS,
