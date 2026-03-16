@@ -151,16 +151,18 @@ class LSConfig:
 class TrainConfig:
     BASE_MODEL = "yolo26m.pt"
     WANDB_PROJECT = "dissertation"
-    EPOCHS = 120
-    IMGSZ = 896
-    LR0 = 0.006
+    WANDB_NAME = "yolo_26_m"
+    EPOCHS = 200
+    IMGSZ = 1024
+    LR0 = 0.003
     LRF = 0.01
     WARMUP_EPOCHS = 4
     MOSAIC = 0.5
     MIXUP = 0.0
     CLOSE_MOSAIC = 10
-    FREEZE = 10
-    PATIENCE = 80
+    FREEZE = 0
+    PATIENCE = 50
+    BATCH_SIZE = 16
     MODEL_VERSION = "v2"
     DATA_PATH = f"./data/datasets/{MODEL_VERSION}/data.yaml"
     DEVICE = "cuda"
@@ -181,28 +183,28 @@ class TrainConfig:
     TEST_SPLIT = 0.1
     AUGMENTATIONS = [
         A.RandomBrightnessContrast(
-            brightness_limit=0.25, contrast_limit=0.25, p=0.35),
+            brightness_limit=0.2, contrast_limit=0.2, p=0.30),
         A.HueSaturationValue(
-            hue_shift_limit=8, sat_shift_limit=20, val_shift_limit=15, p=0.25),
-        A.RGBShift(r_shift_limit=10, g_shift_limit=10,
-                   b_shift_limit=10, p=0.15),
-        A.CLAHE(clip_limit=3.0, tile_grid_size=(8, 8), p=0.15),
-
-        A.GaussNoise(std_range=(0.1, 0.4), p=0.20),
-        A.ImageCompression(quality_range=(40, 95), p=0.20),
-        A.MotionBlur(blur_limit=(3, 7), p=0.15),
-
+            hue_shift_limit=6, sat_shift_limit=15, val_shift_limit=12, p=0.20),
+        A.ImageCompression(quality_range=(55, 95), p=0.15),
+        A.MotionBlur(blur_limit=(3, 5), p=0.10),
+        A.GaussNoise(std_range=(0.02, 0.08), p=0.10),
+        A.RandomSizedBBoxSafeCrop(
+            height=IMGSZ,
+            width=IMGSZ,
+            erosion_rate=0.0,
+            p=0.30,
+        ),
         A.Affine(
-            scale=(0.85, 1.15),
-            translate_percent={"x": (-0.06, 0.06), "y": (-0.06, 0.06)},
-            rotate=(-10, 10),
-            shear={"x": (-5, 5), "y": (-3, 3)},
+            scale=(0.9, 1.15),
+            translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+            rotate=(-8, 8),
+            shear={"x": (-4, 4), "y": (-2, 2)},
             interpolation=1,
             fit_output=False,
             keep_ratio=True,
             rotate_method="largest_box",
             p=0.35,
         ),
-        A.Perspective(scale=(0.02, 0.06), keep_size=True, p=0.15),
         A.HorizontalFlip(p=0.5),
     ]
