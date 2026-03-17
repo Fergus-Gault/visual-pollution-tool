@@ -3,6 +3,7 @@ import os
 import shutil
 import urllib.request
 import json
+import threading
 from PIL import Image, UnidentifiedImageError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
@@ -19,6 +20,7 @@ class InferenceManager:
     def __init__(self, db: DatabaseManager, model: YoloModel):
         self.db = db
         self.model = model
+        self._predict_lock = threading.Lock()
 
     def run_inference(self, region):
         images = self.db.get_images_by_status("unreviewed", region.id)
@@ -119,7 +121,8 @@ class InferenceManager:
             return [], [], {}, failed_ids
 
         try:
-            results = list(self.model.predict(source=image_paths))
+            with self._predict_lock:
+                results = list(self.model.predict(source=image_paths))
             return results, image_paths, image_mappings, failed_ids
         except Exception as e:
             logger.warning(
@@ -135,7 +138,8 @@ class InferenceManager:
                 continue
 
             try:
-                single_result = list(self.model.predict(source=[path]))
+                with self._predict_lock:
+                    single_result = list(self.model.predict(source=[path]))
                 if single_result:
                     fallback_results.append(single_result[0])
                     fallback_paths.append(path)
