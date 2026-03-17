@@ -68,7 +68,7 @@ class DatabaseConfig:
 
 class YoloConfig:
     DEFAULT_MODEL_PATH = Path("data/model/best.pt")
-    CONF_THRESHOLD = 0.50
+    CONF_THRESHOLD = 0.39
     IMGSZ = 1024
     IOU = 0.7
     STREAM = True
@@ -81,7 +81,7 @@ class PipelineConfig:
     NUM_WORKERS = 40
     KARTAVIEW_WORKERS = 20
     MAPILLARY_WORKERS = 80
-    INFERENCE_WORKERS = 20
+    INFERENCE_WORKERS = 40
     DIMENSION_WORKERS = 40
     REGION_WORKERS = 1
     MAPILLARY_RATE_LIMIT = 10000
