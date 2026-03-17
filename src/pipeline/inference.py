@@ -36,7 +36,9 @@ class InferenceManager:
         num_batches = (len(images) + batch_size - 1) // batch_size
         batches = []
 
-        total_detections = 0
+        all_results = []
+        all_image_paths = []
+        all_image_mappings = {}
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
@@ -47,9 +49,17 @@ class InferenceManager:
             with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
                 for future in as_completed(future_to_detection):
                     results, image_paths, image_mappings = future.result()
-                    total_detections += self._process_results(
-                        results, image_paths, image_mappings)
+                    all_results.extend(results)
+                    all_image_paths.extend(image_paths)
+                    all_image_mappings.update(image_mappings)
                     pbar.update(1)
+
+        total_detections = self._process_results(
+            all_results, all_image_paths, all_image_mappings)
+
+        temp_dirs = {os.path.dirname(p) for p in all_image_paths}
+        for d in temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
 
         return total_detections
 
@@ -86,13 +96,8 @@ class InferenceManager:
         image_paths, image_mappings = self._temp_download(batch, idx)
         if not image_paths:
             return [], [], {}
-
-        temp_dir = os.path.dirname(image_paths[0])
-        try:
-            results = list(self.model.predict(source=image_paths))
-            return results, image_paths, image_mappings
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        results = self.model.predict(source=image_paths)
+        return results, image_paths, image_mappings
 
     def _process_results(self, results, image_paths, image_mapping):
         all_detections = []
