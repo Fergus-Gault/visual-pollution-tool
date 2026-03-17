@@ -97,6 +97,24 @@ class DatabaseManager:
         self.session.commit()
         return self.regions.delete(region_id)
 
+    def delete_regions(self, region_ids):
+        if not region_ids:
+            return 0
+
+        image_ids_subq = select(Image.id).where(
+            Image.region_id.in_(region_ids)).scalar_subquery()
+        self.session.execute(delete(Detection).where(
+            Detection.image_id.in_(image_ids_subq)))
+        self.session.execute(delete(Image).where(
+            Image.region_id.in_(region_ids)))
+        self.session.execute(delete(OSMFeature).where(
+            OSMFeature.region_id.in_(region_ids)))
+        deleted_regions = self.session.execute(
+            delete(Region).where(Region.id.in_(region_ids))
+        )
+        self.session.commit()
+        return deleted_regions.rowcount or 0
+
     def get_region_bbox(self, region_id):
         region = self.get_region(region_id)
         if not region:
