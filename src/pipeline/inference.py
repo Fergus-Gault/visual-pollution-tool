@@ -117,8 +117,37 @@ class InferenceManager:
             batch, idx)
         if not image_paths:
             return [], [], {}, failed_ids
-        results = self.model.predict(source=image_paths)
-        return results, image_paths, image_mappings, failed_ids
+
+        try:
+            results = list(self.model.predict(source=image_paths))
+            return results, image_paths, image_mappings, failed_ids
+        except Exception as e:
+            logger.warning(
+                f"Batch {idx} inference failed ({e}). Falling back to per-image inference.")
+
+        fallback_results = []
+        fallback_paths = []
+        fallback_mappings = {}
+
+        for path in image_paths:
+            image = image_mappings.get(path)
+            if image is None:
+                continue
+
+            try:
+                single_result = list(self.model.predict(source=[path]))
+                if single_result:
+                    fallback_results.append(single_result[0])
+                    fallback_paths.append(path)
+                    fallback_mappings[path] = image
+                else:
+                    failed_ids.append(image.id)
+            except Exception as single_error:
+                logger.debug(
+                    f"Failed inference for image {image.id} in batch {idx}: {single_error}")
+                failed_ids.append(image.id)
+
+        return fallback_results, fallback_paths, fallback_mappings, failed_ids
 
     def _process_results(self, results, image_paths, image_mapping):
         all_detections = []
