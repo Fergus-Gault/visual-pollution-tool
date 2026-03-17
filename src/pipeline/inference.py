@@ -3,6 +3,7 @@ import os
 import shutil
 import urllib.request
 import json
+from PIL import Image, UnidentifiedImageError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
@@ -39,6 +40,7 @@ class InferenceManager:
         all_results = []
         all_image_paths = []
         all_image_mappings = {}
+        all_failed_ids = []
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
@@ -48,14 +50,18 @@ class InferenceManager:
             }
             with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
                 for future in as_completed(future_to_detection):
-                    results, image_paths, image_mappings = future.result()
+                    results, image_paths, image_mappings, failed_ids = future.result()
                     all_results.extend(results)
                     all_image_paths.extend(image_paths)
                     all_image_mappings.update(image_mappings)
+                    all_failed_ids.extend(failed_ids)
                     pbar.update(1)
 
         total_detections = self._process_results(
             all_results, all_image_paths, all_image_mappings)
+
+        if all_failed_ids:
+            self.db.bulk_update_image_status(all_failed_ids, "failed")
 
         temp_dirs = {os.path.dirname(p) for p in all_image_paths}
         for d in temp_dirs:
@@ -65,6 +71,7 @@ class InferenceManager:
 
     def _temp_download(self, batch, idx):
         image_paths = []
+        failed_ids = []
         # Image mappings maps the image path to the image object
         image_mappings = {}
         temp_dir = tempfile.mkdtemp(prefix=f"inference_batch_{idx}")
@@ -83,21 +90,35 @@ class InferenceManager:
                 with urllib.request.urlopen(request, timeout=PipelineConfig.DOWNLOAD_TIMEOUT) as response:
                     with open(image_path, "wb") as out_file:
                         out_file.write(response.read())
+
+                    try:
+                        with Image.open(image_path) as img:
+                            img.verify()
+                    except (UnidentifiedImageError, OSError) as e:
+                        logger.debug(
+                            f"Invalid image {image.id} for batch: {e}")
+                        failed_ids.append(image.id)
+                        if os.path.exists(image_path):
+                            os.remove(image_path)
+                        continue
+
                     image_paths.append(image_path)
                     image_mappings[image_path] = image
 
             except Exception as e:
                 logger.debug(
                     f"Failed to download image {image.id} for batch: {e}")
+                failed_ids.append(image.id)
 
-        return image_paths, image_mappings
+        return image_paths, image_mappings, failed_ids
 
     def _process_batch(self, batch, idx):
-        image_paths, image_mappings = self._temp_download(batch, idx)
+        image_paths, image_mappings, failed_ids = self._temp_download(
+            batch, idx)
         if not image_paths:
-            return [], [], {}
+            return [], [], {}, failed_ids
         results = self.model.predict(source=image_paths)
-        return results, image_paths, image_mappings
+        return results, image_paths, image_mappings, failed_ids
 
     def _process_results(self, results, image_paths, image_mapping):
         all_detections = []
