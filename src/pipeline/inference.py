@@ -26,7 +26,8 @@ class InferenceManager:
         if not images:
             return
 
-        total_detections = self._batch_process(images)
+        image_data = [{"id": image.id, "url": image.url} for image in images]
+        total_detections = self._batch_process(image_data)
 
         logger.info(
             f"Processed {len(images)} images, found {total_detections} detections.")
@@ -63,10 +64,10 @@ class InferenceManager:
         for idx, image in enumerate(batch):
             try:
                 image_path = os.path.join(
-                    temp_dir, f"img_{idx}_{image.id}.jpg")
+                    temp_dir, f"img_{idx}_{image['id']}.jpg")
 
                 request = urllib.request.Request(
-                    image.url,
+                    image["url"],
                     headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                     }
@@ -80,7 +81,7 @@ class InferenceManager:
 
             except Exception as e:
                 logger.debug(
-                    f"Failed to download image {image.id} for batch: {e}")
+                    f"Failed to download image {image['id']} for batch: {e}")
 
         return image_paths, image_mappings, temp_dir
 
@@ -88,7 +89,11 @@ class InferenceManager:
         image_paths, image_mappings, temp_dir = self._temp_download(batch, idx)
         if not image_paths:
             return [], [], {}, temp_dir
-        results = self.model.predict(source=image_paths)
+        try:
+            results = self.model.predict(source=image_paths)
+        except Exception as e:
+            logger.error(f"Failed to run model inference for batch {idx}: {e}")
+            return [], [], {}, temp_dir
         return results, image_paths, image_mappings, temp_dir
 
     def _process_results(self, results, image_paths, image_mapping):
@@ -103,10 +108,10 @@ class InferenceManager:
                     det_objects = self._build_detections(image, detections)
                     all_detections.extend(det_objects)
                     num_detections += len(det_objects)
-                    reviewed_ids.append(image.id)
+                    reviewed_ids.append(image["id"])
                 except Exception as e:
-                    logger.error(f"Failed to process image {image.id}: {e}")
-                    self.db.update_image_status(image.id, "failed")
+                    logger.error(f"Failed to process image {image['id']}: {e}")
+                    self.db.update_image_status(image["id"], "failed")
 
         self.db.add_many_detections(all_detections)
         self.db.bulk_update_image_status(reviewed_ids, "reviewed")
@@ -119,7 +124,7 @@ class InferenceManager:
             class_id = det["class_id"]
             label = self.model.get_class_names().get(class_id, str(class_id))
             to_add.append(Detection(
-                image_id=image.id,
+                image_id=image["id"],
                 label=label,
                 confidence=det["confidence"],
                 bbox=json.dumps(det["bbox"])
