@@ -3,7 +3,7 @@ import os
 import shutil
 import urllib.request
 import json
-from PIL import Image, UnidentifiedImageError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 from src.model import YoloModel
@@ -36,34 +36,35 @@ class InferenceManager:
         num_batches = (len(images) + batch_size - 1) // batch_size
         batches = []
 
-        total_detections = 0
-        all_failed_ids = []
+        all_results = []
+        all_image_paths = []
+        all_image_mappings = {}
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
-        with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
-            for idx, batch in enumerate(batches):
-                results, image_paths, image_mappings, failed_ids = self._process_batch(
-                    batch, idx)
-                if results and image_paths and image_mappings:
-                    total_detections += self._process_results(
-                        results, image_paths, image_mappings)
-                all_failed_ids.extend(failed_ids)
+        with ThreadPoolExecutor(max_workers=PipelineConfig.INFERENCE_WORKERS) as executor:
+            future_to_detection = {
+                executor.submit(self._process_batch, batch, idx): (idx, batch) for idx, batch in enumerate(batches)
+            }
+            with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
+                for future in as_completed(future_to_detection):
+                    results, image_paths, image_mappings = future.result()
+                    all_results.extend(results)
+                    all_image_paths.extend(image_paths)
+                    all_image_mappings.update(image_mappings)
+                    pbar.update(1)
 
-                temp_dirs = {os.path.dirname(p) for p in image_paths}
-                for d in temp_dirs:
-                    shutil.rmtree(d, ignore_errors=True)
+        total_detections = self._process_results(
+            all_results, all_image_paths, all_image_mappings)
 
-                pbar.update(1)
-
-        if all_failed_ids:
-            self.db.bulk_update_image_status(all_failed_ids, "failed")
+        temp_dirs = {os.path.dirname(p) for p in all_image_paths}
+        for d in temp_dirs:
+            shutil.rmtree(d, ignore_errors=True)
 
         return total_detections
 
     def _temp_download(self, batch, idx):
         image_paths = []
-        failed_ids = []
         # Image mappings maps the image path to the image object
         image_mappings = {}
         temp_dir = tempfile.mkdtemp(prefix=f"inference_batch_{idx}")
@@ -82,64 +83,21 @@ class InferenceManager:
                 with urllib.request.urlopen(request, timeout=PipelineConfig.DOWNLOAD_TIMEOUT) as response:
                     with open(image_path, "wb") as out_file:
                         out_file.write(response.read())
-
-                    try:
-                        with Image.open(image_path) as img:
-                            img.verify()
-                    except (UnidentifiedImageError, OSError) as e:
-                        logger.debug(
-                            f"Invalid image {image.id} for batch: {e}")
-                        failed_ids.append(image.id)
-                        if os.path.exists(image_path):
-                            os.remove(image_path)
-                        continue
-
                     image_paths.append(image_path)
                     image_mappings[image_path] = image
 
             except Exception as e:
                 logger.debug(
                     f"Failed to download image {image.id} for batch: {e}")
-                failed_ids.append(image.id)
 
-        return image_paths, image_mappings, failed_ids
+        return image_paths, image_mappings
 
     def _process_batch(self, batch, idx):
-        image_paths, image_mappings, failed_ids = self._temp_download(
-            batch, idx)
+        image_paths, image_mappings = self._temp_download(batch, idx)
         if not image_paths:
-            return [], [], {}, failed_ids
-
-        try:
-            results = list(self.model.predict(source=image_paths))
-            return results, image_paths, image_mappings, failed_ids
-        except Exception as e:
-            logger.warning(
-                f"Batch {idx} inference failed ({e}). Falling back to per-image inference.")
-
-        fallback_results = []
-        fallback_paths = []
-        fallback_mappings = {}
-
-        for path in image_paths:
-            image = image_mappings.get(path)
-            if image is None:
-                continue
-
-            try:
-                single_result = list(self.model.predict(source=[path]))
-                if single_result:
-                    fallback_results.append(single_result[0])
-                    fallback_paths.append(path)
-                    fallback_mappings[path] = image
-                else:
-                    failed_ids.append(image.id)
-            except Exception as single_error:
-                logger.debug(
-                    f"Failed inference for image {image.id} in batch {idx}: {single_error}")
-                failed_ids.append(image.id)
-
-        return fallback_results, fallback_paths, fallback_mappings, failed_ids
+            return [], [], {}
+        results = self.model.predict(source=image_paths)
+        return results, image_paths, image_mappings
 
     def _process_results(self, results, image_paths, image_mapping):
         all_detections = []
