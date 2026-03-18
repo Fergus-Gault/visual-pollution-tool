@@ -39,9 +39,7 @@ class InferenceManager:
         num_batches = (len(images) + batch_size - 1) // batch_size
         batches = []
 
-        all_results = []
-        all_image_paths = []
-        all_image_mappings = {}
+        total_detections = 0
         all_failed_ids = []
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
@@ -53,21 +51,19 @@ class InferenceManager:
             with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
                 for future in as_completed(future_to_detection):
                     results, image_paths, image_mappings, failed_ids = future.result()
-                    all_results.extend(results)
-                    all_image_paths.extend(image_paths)
-                    all_image_mappings.update(image_mappings)
+                    if results and image_paths and image_mappings:
+                        total_detections += self._process_results(
+                            results, image_paths, image_mappings)
                     all_failed_ids.extend(failed_ids)
-                    pbar.update(1)
 
-        total_detections = self._process_results(
-            all_results, all_image_paths, all_image_mappings)
+                    temp_dirs = {os.path.dirname(p) for p in image_paths}
+                    for d in temp_dirs:
+                        shutil.rmtree(d, ignore_errors=True)
+
+                    pbar.update(1)
 
         if all_failed_ids:
             self.db.bulk_update_image_status(all_failed_ids, "failed")
-
-        temp_dirs = {os.path.dirname(p) for p in all_image_paths}
-        for d in temp_dirs:
-            shutil.rmtree(d, ignore_errors=True)
 
         return total_detections
 
