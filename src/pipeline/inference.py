@@ -3,9 +3,7 @@ import os
 import shutil
 import urllib.request
 import json
-import threading
 from PIL import Image, UnidentifiedImageError
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 from src.model import YoloModel
@@ -20,7 +18,6 @@ class InferenceManager:
     def __init__(self, db: DatabaseManager, model: YoloModel):
         self.db = db
         self.model = model
-        self._predict_lock = threading.Lock()
 
     def run_inference(self, region):
         images = self.db.get_images_by_status("unreviewed", region.id)
@@ -44,23 +41,20 @@ class InferenceManager:
         for i in range(0, len(images), batch_size):
             batch = images[i:i+batch_size]
             batches.append(batch)
-        with ThreadPoolExecutor(max_workers=PipelineConfig.INFERENCE_WORKERS) as executor:
-            future_to_detection = {
-                executor.submit(self._process_batch, batch, idx): (idx, batch) for idx, batch in enumerate(batches)
-            }
-            with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
-                for future in as_completed(future_to_detection):
-                    results, image_paths, image_mappings, failed_ids = future.result()
-                    if results and image_paths and image_mappings:
-                        total_detections += self._process_results(
-                            results, image_paths, image_mappings)
-                    all_failed_ids.extend(failed_ids)
+        with tqdm(total=num_batches, desc="Running inference on batches") as pbar:
+            for idx, batch in enumerate(batches):
+                results, image_paths, image_mappings, failed_ids = self._process_batch(
+                    batch, idx)
+                if results and image_paths and image_mappings:
+                    total_detections += self._process_results(
+                        results, image_paths, image_mappings)
+                all_failed_ids.extend(failed_ids)
 
-                    temp_dirs = {os.path.dirname(p) for p in image_paths}
-                    for d in temp_dirs:
-                        shutil.rmtree(d, ignore_errors=True)
+                temp_dirs = {os.path.dirname(p) for p in image_paths}
+                for d in temp_dirs:
+                    shutil.rmtree(d, ignore_errors=True)
 
-                    pbar.update(1)
+                pbar.update(1)
 
         if all_failed_ids:
             self.db.bulk_update_image_status(all_failed_ids, "failed")
@@ -117,8 +111,7 @@ class InferenceManager:
             return [], [], {}, failed_ids
 
         try:
-            with self._predict_lock:
-                results = list(self.model.predict(source=image_paths))
+            results = list(self.model.predict(source=image_paths))
             return results, image_paths, image_mappings, failed_ids
         except Exception as e:
             logger.warning(
@@ -134,8 +127,7 @@ class InferenceManager:
                 continue
 
             try:
-                with self._predict_lock:
-                    single_result = list(self.model.predict(source=[path]))
+                single_result = list(self.model.predict(source=[path]))
                 if single_result:
                     fallback_results.append(single_result[0])
                     fallback_paths.append(path)
