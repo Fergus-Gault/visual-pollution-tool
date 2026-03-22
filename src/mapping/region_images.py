@@ -27,7 +27,9 @@ class RegionImages:
         _, centre = RegionManager.get_combined_bbox(regions)
 
         m = folium.Map(location=[centre[1], centre[0]],
-                       zoom_start=MapConfig.ZOOM_START, tiles=MapConfig.TILES)
+                       zoom_start=MapConfig.ZOOM_START,
+                       tiles=MapConfig.get_tiles_url(),
+                       attr=MapConfig.TILES_ATTR)
 
         source_counts = {}
         for img in all_images:

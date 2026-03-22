@@ -28,8 +28,9 @@ class RegionDetections:
         _, centre = RegionManager.get_combined_bbox(regions)
 
         m = folium.Map(location=[centre[1], centre[0]],
-                       zoom_start=MapConfig.ZOOM_START, tile=MapConfig.TILES)
-
+                       zoom_start=MapConfig.ZOOM_START,
+                       tiles=MapConfig.get_tiles_url(),
+                       attr=MapConfig.TILES_ATTR)
         detection_counts = {}
         for det in all_detections:
             det_t = det.label
