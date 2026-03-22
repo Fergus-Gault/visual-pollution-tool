@@ -1,5 +1,6 @@
 from pathlib import Path
 import albumentations as A
+from dotenv import dotenv_values
 
 
 class Config:
@@ -11,7 +12,7 @@ class Config:
     ENV_PATH = "./auth/.env"
     REQ_TIMEOUT = 3
     DEBUG = False
-    DENSE_MULTIPLIER = 5
+    DENSE_MULTIPLIER = 10
     MIN_POPULATION = 100000
     DEFAULT_CSV = "data/worldcities.csv"
 
@@ -117,8 +118,18 @@ class MapConfig:
         "mobile_advertisement": MOBILE_AD_COLOUR,
         "other": OTHER_COLOUR
     }
-    TILES = "OpenStreetMap"
+    STADIA_STYLE = "alidade_smooth"
+    TILES_ATTR = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     ZOOM_START = 13
+
+    @staticmethod
+    def get_tiles_url():
+        env = dotenv_values(Config.ENV_PATH)
+        api_key = env.get("STADIA_MAPS_API")
+        base = f"https://tiles.stadiamaps.com/tiles/{MapConfig.STADIA_STYLE}/{{z}}/{{x}}/{{y}}{{r}}.png"
+        if api_key:
+            return f"{base}?api_key={api_key}"
+        return base
 
 
 class LSConfig:
@@ -209,3 +220,30 @@ class TrainConfig:
         ),
         A.HorizontalFlip(p=0.5),
     ]
+
+
+class ScoreConfig:
+    SEVERITY_SCORES = {
+        'billboard': 0.9,
+        'graffiti': 0.4,
+        'pothole': 0.1,
+        'utility_pole': 0.3,
+        'bin': 0.2,
+        'road_sign': 0.0,
+        'barrier': 0.1,
+        'mobile_advertisement': 0.05,
+        'shop_sign': 0.05,
+    }
+    OSM_SEVERITY_SCORES = {
+        'billboard': 0.9,
+        'power': 0.3,
+        'bin': 0.2,
+        'barrier': 0.1,
+        'traffic_sign': 0.0,
+        'traffic_light': 0.0,
+        'street_light': 0.0,
+        'other': 0.0,
+    }
+    OSM_WEIGHT = 0.50
+    IMAGES_PER_REGION_THRESHOLD = 300
+    FEATURES_PER_REGION_THRESHOLD = 300
