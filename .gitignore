@@ -11,3 +11,4 @@ datasets/
 runs/
 cache/
 wandb/
+data/scores*.csv

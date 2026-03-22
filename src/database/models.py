@@ -20,8 +20,13 @@ class Region(Base):
     scanned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     city = Column(String, nullable=True)
     country = Column(String, nullable=True)
+    iso3 = Column(String, nullable=True)
     population = Column(Integer, nullable=True)
+    start_captured_at = Column(DateTime, nullable=True, default=None)
+    end_captured_at = Column(DateTime, nullable=True, default=None)
+    dense_scan = Column(Boolean, nullable=False, default=False)
     osm_fetched = Column(Boolean, nullable=False, default=False)
+    score = Column(Float, nullable=True)
 
     images = relationship("Image", back_populates="region",
                           cascade="all, delete-orphan")

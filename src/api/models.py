@@ -122,17 +122,24 @@ class ImageRequest:
     bbox: BoundingBox
     is_pano: bool = False
     fields: str = MapillaryConfig.DEFAULT_FIELDS
+    start_captured_at: Optional[str] = None
+    end_captured_at: Optional[str] = None
 
     # Kartaview specific
     zoom_level: int = KartaviewConfig.ZOOM_LEVEL
 
     def to_mapillary_params(self):
-        return {
+        params = {
             "fields": self.fields,
             "bbox": self.bbox.to_str(),
             "is_pano": self.is_pano,
             "limit": MapillaryConfig.IMAGES_PER_POINT,
         }
+        if self.start_captured_at is not None:
+            params["start_captured_at"] = self.start_captured_at
+        if self.end_captured_at is not None:
+            params["end_captured_at"] = self.end_captured_at
+        return params
 
     def to_kartaview_params(self):
         return {

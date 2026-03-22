@@ -3,7 +3,7 @@ from dateutil.parser import ParserError
 from datetime import datetime, date
 import unicodedata
 
-from sqlalchemy import create_engine, delete, select, func
+from sqlalchemy import create_engine, delete, select, func, text
 from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 
@@ -23,6 +23,7 @@ class DatabaseManager:
 
         self.engine = create_engine(db_url, poolclass=NullPool)
         Base.metadata.create_all(self.engine)
+        self._ensure_delete_indexes()
 
         SessionLocal = sessionmaker(bind=self.engine)
         self.session = SessionLocal()
@@ -32,14 +33,27 @@ class DatabaseManager:
         self.detections = DetectionRepo(self.session)
         self.osm_features = OSMFeatureRepo(self.session)
 
+    def _ensure_delete_indexes(self):
+        statements = [
+            "CREATE INDEX IF NOT EXISTS idx_images_region_id ON images (region_id)",
+            "CREATE INDEX IF NOT EXISTS idx_detections_image_id ON detections (image_id)",
+            "CREATE INDEX IF NOT EXISTS idx_osm_features_region_id ON osm_features (region_id)",
+        ]
+        try:
+            with self.engine.begin() as conn:
+                for statement in statements:
+                    conn.execute(text(statement))
+        except Exception:
+            logger.warning("Could not ensure delete indexes.")
+
     def get_all_regions(self):
         return self.regions.get_all()
 
     def get_region(self, region_id):
         return self.regions.get_by_id(region_id)
 
-    def get_region_by_point(self, lng, lat):
-        return self.regions.get_by_point(lng, lat)
+    def get_region_by_point(self, lng, lat, dense_scan=None):
+        return self.regions.get_by_point(lng, lat, dense_scan=dense_scan)
 
     def get_region_by_city_and_country(self, city, country):
         return self.regions.get_by_city_and_country(city, country)
@@ -68,12 +82,56 @@ class DatabaseManager:
             select(Image).where(Image.id.in_(sampled_ids))
         ).all()
 
-    def add_region(self, bbox: BoundingBox, city=None, country=None, population=None):
-        name = RegionManager.generate_region_name(bbox)
+    def _parse_optional_datetime(self, value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time())
+        if isinstance(value, str):
+            try:
+                return date_parser.parse(value)
+            except (ParserError, ValueError, TypeError):
+                return None
+        return None
+
+    def _format_capture_window_for_name(self, value):
+        parsed_value = self._parse_optional_datetime(value)
+        if parsed_value is None:
+            return None
+        return parsed_value.strftime("%Y%m%dT%H%M%S")
+
+    def build_region_name(self, bbox: BoundingBox, dense_scan=False, start_captured_at=None, end_captured_at=None):
+        base_name = RegionManager.generate_region_name(bbox)
+        parts = []
+        if dense_scan:
+            parts.append("dense")
+        start_token = self._format_capture_window_for_name(start_captured_at)
+        end_token = self._format_capture_window_for_name(end_captured_at)
+        if start_token is not None:
+            parts.append(f"start_{start_token}")
+        if end_token is not None:
+            parts.append(f"end_{end_token}")
+        if not parts:
+            return base_name
+        return f"{base_name}_{'_'.join(parts)}"
+
+    def add_region(self, bbox: BoundingBox, city=None, country=None, iso3=None, population=None, dense_scan=False, start_captured_at=None, end_captured_at=None):
+        parsed_start_captured_at = self._parse_optional_datetime(
+            start_captured_at)
+        parsed_end_captured_at = self._parse_optional_datetime(end_captured_at)
+        name = self.build_region_name(
+            bbox,
+            dense_scan=dense_scan,
+            start_captured_at=parsed_start_captured_at,
+            end_captured_at=parsed_end_captured_at,
+        )
         city = unicodedata.normalize('NFC', city) if city else city
         country = unicodedata.normalize('NFC', country) if country else country
+        iso3 = iso3.strip().upper() if isinstance(iso3, str) and iso3.strip() else None
         region = Region(name=name, min_lng=bbox.min_lng, min_lat=bbox.min_lat,
-                        max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country, population=population)
+                        max_lng=bbox.max_lng, max_lat=bbox.max_lat, city=city, country=country, iso3=iso3, population=population, dense_scan=dense_scan, start_captured_at=parsed_start_captured_at, end_captured_at=parsed_end_captured_at)
         self.regions.add(region)
         return region
 
@@ -86,16 +144,14 @@ class DatabaseManager:
             region.osm_fetched = value
             self.session.commit()
 
+    def update_score(self, region_id, score):
+        region = self.get_region(region_id)
+        if region:
+            region.score = score
+            self.session.commit()
+
     def delete_region(self, region_id):
-        image_ids_subq = select(Image.id).where(
-            Image.region_id == region_id).scalar_subquery()
-        self.session.execute(delete(Detection).where(
-            Detection.image_id.in_(image_ids_subq)))
-        self.session.execute(delete(Image).where(Image.region_id == region_id))
-        self.session.execute(delete(OSMFeature).where(
-            OSMFeature.region_id == region_id))
-        self.session.commit()
-        return self.regions.delete(region_id)
+        return self.delete_regions([region_id]) > 0
 
     def delete_regions(self, region_ids):
         if not region_ids:

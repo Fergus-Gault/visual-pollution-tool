@@ -23,14 +23,24 @@ class MapillaryAPI(APIManager):
         params["access_token"] = self.access_token
         return self.http_client.get(endpoint, params=params, session=session)
 
-    def fetch_region(self, bbox, num_subregions=MapillaryConfig.SUBREGIONS, dense_scan=False):
-        return super().fetch_region(bbox, num_subregions, dense_scan)
+    def fetch_region(self, bbox, num_subregions=MapillaryConfig.SUBREGIONS, dense_scan=False, start_captured_at=None, end_captured_at=None):
+        return super().fetch_region(
+            bbox,
+            num_subregions,
+            dense_scan,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
 
     def _num_workers(self):
         return PipelineConfig.MAPILLARY_WORKERS
 
     def _fetch_subregion(self, subregion: BoundingBox, session=None, **kwargs):
-        params = ImageRequest(subregion).to_mapillary_params()
+        params = ImageRequest(
+            subregion,
+            start_captured_at=kwargs.get("start_captured_at"),
+            end_captured_at=kwargs.get("end_captured_at"),
+        ).to_mapillary_params()
 
         subregion_images = []
         next_cursor = None

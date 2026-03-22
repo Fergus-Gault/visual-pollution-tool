@@ -1,8 +1,9 @@
 __all__ = ["Pipeline", "Scanner", "InferenceManager",
-           "DatasetManager", "PipelineMP"]
+           "DatasetManager", "PipelineMP", "Scorer"]
 
 from .pipeline import Pipeline
 from .scanner import Scanner
 from .inference import InferenceManager
 from .dataset import DatasetManager
 from .pipeline_mp import PipelineMP
+from .score import Scorer

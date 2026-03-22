@@ -17,23 +17,30 @@ class Scanner:
         self.apis: List[APIManager] = apis or [KartaviewAPI(), MapillaryAPI()]
         self.osm = OSMApi()
 
-    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=True, city=None, country=None, population=None):
+    def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=True, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
         region, gdf = self._get_or_create_region(
-            region_id, lng, lat, region_method, override=override, city=city, country=country, population=population)
+            region_id, lng, lat, region_method, override=override, dense_scan=dense_scan, city=city, country=country, iso3=iso3, population=population, start_captured_at=start_captured_at, end_captured_at=end_captured_at)
         if region is None:
             return None
-        self._scan_region(region, gdf, dense_scan, fetch_osm)
+        effective_fetch_osm = fetch_osm and not dense_scan
+        self._scan_region(region, gdf, dense_scan, effective_fetch_osm,
+                          start_captured_at=start_captured_at, end_captured_at=end_captured_at)
         return region
 
-    def _scan_region(self, region, gdf, dense_scan, fetch_osm):
+    def _scan_region(self, region, gdf, dense_scan, fetch_osm, start_captured_at=None, end_captured_at=None):
         region_bbox = BoundingBox(region.min_lng, region.min_lat,
                                   region.max_lng, region.max_lat)
+        eligible_apis = [
+            api for api in self.apis
+            if not (dense_scan and isinstance(api, KartaviewAPI))
+        ]
 
         with ThreadPoolExecutor() as executor:
             osm_future = executor.submit(
                 self.osm.fetch_region, region_bbox) if (fetch_osm and self.osm.api is not None) else None
             api_futures = [(api, executor.submit(
-                api.fetch_region, region_bbox, dense_scan=dense_scan)) for api in self.apis]
+                api.fetch_region, region_bbox, dense_scan=dense_scan,
+                start_captured_at=start_captured_at, end_captured_at=end_captured_at)) for api in eligible_apis]
             raw_osm = osm_future.result() if osm_future else None
             api_results = [(api, future.result())
                            for api, future in api_futures]
@@ -155,11 +162,15 @@ class Scanner:
         else:
             return None
 
+        id_from_source = params['id_from_source']
+        if params['region'].dense_scan:
+            id_from_source = f"{id_from_source}|dense|{params['region'].id}"
+
         return Image(
             region_id=params['region'].id,
             lng=params['lng'],
             lat=params['lat'],
-            id_from_source=params['id_from_source'],
+            id_from_source=id_from_source,
             source_captured_at=captured_at,
             url=params['url'],
             source=params['source'],
@@ -167,7 +178,7 @@ class Scanner:
             height=params['height']
         )
 
-    def _get_or_create_region(self, region_id, lng, lat, region_method, override=False, city=None, country=None, population=None):
+    def _get_or_create_region(self, region_id, lng, lat, region_method, override=False, dense_scan=False, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
         gdf = None
         if region_id is not None:
             existing = self.db.get_region(region_id)
@@ -179,7 +190,11 @@ class Scanner:
             lng, lat = RegionManager.get_region_mid(bbox)
             city = city or existing.city
             country = country or existing.country
+            iso3 = iso3 or existing.iso3
             population = population or existing.population
+            start_captured_at = start_captured_at or existing.start_captured_at
+            end_captured_at = end_captured_at or existing.end_captured_at
+            dense_scan = existing.dense_scan if dense_scan is None else dense_scan
             self.db.delete_region(region_id)
         elif lng is None or lat is None:
             raise Exception(
@@ -187,8 +202,13 @@ class Scanner:
 
         bbox = RegionManager.get_region_bbox(lng, lat)
         if not override:
-            initial_existing = self.db.get_region_by_name(
-                RegionManager.generate_region_name(bbox)) or self.db.get_region_by_point(lng, lat)
+            initial_region_name = self.db.build_region_name(
+                bbox,
+                dense_scan=dense_scan,
+                start_captured_at=start_captured_at,
+                end_captured_at=end_captured_at,
+            )
+            initial_existing = self.db.get_region_by_name(initial_region_name)
             if initial_existing is not None:
                 return None, None
         if city is None or country is None:
@@ -209,15 +229,28 @@ class Scanner:
                         (shape_bbox.max_lat - shape_bbox.min_lat)
                     if shape_area <= Config.MAX_SHAPE_BBOX_AREA:
                         bbox = shape_bbox
-        existing = self.db.get_region_by_name(
-            RegionManager.generate_region_name(bbox))
+        final_region_name = self.db.build_region_name(
+            bbox,
+            dense_scan=dense_scan,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+        existing = self.db.get_region_by_name(final_region_name)
         if existing is not None:
             if not override:
                 return None, None
             self.db.delete_region(existing.id)
         logger.info(f"Adding region for {city}, {country}.")
-        region = self.db.add_region(bbox, city, country, population=population)
+        region = self.db.add_region(
+            bbox,
+            city,
+            country,
+            iso3=iso3,
+            population=population,
+            dense_scan=dense_scan,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
         if region is None:
-            region = self.db.get_region_by_name(
-                RegionManager.generate_region_name(bbox))
+            region = self.db.get_region_by_name(final_region_name)
         return region, gdf

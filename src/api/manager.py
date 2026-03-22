@@ -29,12 +29,12 @@ class APIManager(ABC):
     def _num_workers(self):
         return PipelineConfig.NUM_WORKERS
 
-    def fetch_region(self, bbox: BoundingBox, num_subregions, dense_scan):
+    def fetch_region(self, bbox: BoundingBox, num_subregions, dense_scan, **kwargs):
         if dense_scan:
             num_subregions = num_subregions * Config.DENSE_MULTIPLIER
-        return self._fetch_subregion_points(bbox, num_subregions)
+        return self._fetch_subregion_points(bbox, num_subregions, **kwargs)
 
-    def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions):
+    def _fetch_subregion_points(self, bbox: BoundingBox, num_subregions, **kwargs):
 
         num_workers = self._num_workers()
         session = requests.Session()
@@ -52,7 +52,7 @@ class APIManager(ABC):
         images = []
         with ThreadPoolExecutor(max_workers=num_workers) as executor:
             future_to_fetch = {
-                executor.submit(self._fetch_subregion, subregion, session): subregion for subregion in subregions
+                executor.submit(self._fetch_subregion, subregion, session, **kwargs): subregion for subregion in subregions
             }
             with tqdm(total=len(subregions), desc="Fetching images from region") as pbar:
                 for future in as_completed(future_to_fetch):

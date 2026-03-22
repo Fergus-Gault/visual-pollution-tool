@@ -10,6 +10,17 @@ def _run_region(row, pipeline, collect_only, override, region_method, dense_scan
     r = row
     city = r.get("city_ascii", "").strip() or None
     country = r.get("country", "").strip() or None
+    iso3 = r.get("iso3", "").strip().upper() or None
+    start_captured_at = (
+        r.get("start_captured_at", "").strip()
+        or r.get("start_capture_date", "").strip()
+        or None
+    )
+    end_captured_at = (
+        r.get("end_captured_at", "").strip()
+        or r.get("end_capture_date", "").strip()
+        or None
+    )
     population_raw = r.get("population", "").strip()
     population = int(float(population_raw)) if population_raw else None
     try:
@@ -26,9 +37,10 @@ def _run_region(row, pipeline, collect_only, override, region_method, dense_scan
     if lng is None or lat is None:
         return
     pipeline._run_region_coords(
-        lng=lng, lat=lat, city=city, country=country, population=population,
+        lng=lng, lat=lat, city=city, country=country, iso3=iso3, population=population,
         collect_only=collect_only, override=override, region_method=region_method,
-        dense_scan=dense_scan, fetch_osm=fetch_osm)
+        dense_scan=dense_scan, fetch_osm=fetch_osm,
+        start_captured_at=start_captured_at, end_captured_at=end_captured_at)
 
 
 def _run_chunk(chunk, header, token, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
