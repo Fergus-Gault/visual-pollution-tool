@@ -2,17 +2,15 @@ import folium
 import math
 from branca.colormap import LinearColormap
 from sqlalchemy import func
-from src.utils import setup_logger, RegionManager
+from src.utils import RegionManager
 from src.config import MapConfig
-from src.database import DatabaseManager, Image
+from src.database import DatabaseManager, OSMFeature
 from src.api import BoundingBox
 
-logger = setup_logger(__name__)
 
-
-class WorldImages:
+class WorldOSM:
     @staticmethod
-    def map_world_images(db: DatabaseManager):
+    def map_world_osm(db: DatabaseManager):
         all_regions = [r for r in db.get_all_regions() if not r.dense_scan]
         coords = []
 
@@ -47,7 +45,7 @@ class WorldImages:
         return m
 
     @staticmethod
-    def map_world_images_scaled_by_count(db: DatabaseManager, min_radius=1, max_radius=4):
+    def map_osm_scaled_by_count(db: DatabaseManager, min_radius=1, max_radius=4):
         all_regions = [r for r in db.get_all_regions() if not r.dense_scan]
         included_region_ids = {region.id for region in all_regions}
         coords = []
@@ -56,7 +54,7 @@ class WorldImages:
             colors=["#d7191c", "#fa7d00", "#007425"],
             vmin=0,
             vmax=1,
-            caption="Log-normalized image count",
+            caption="Log-normalized OSM feature count",
         )
 
         m = folium.Map(location=[20, 0],
@@ -66,20 +64,20 @@ class WorldImages:
                        prefer_canvas=True)
 
         rows = db.session.query(
-            Image.region_id,
-            func.count(Image.id).label("image_count")
-        ).group_by(Image.region_id).all()
-        image_counts = {
-            row.region_id: int(row.image_count)
+            OSMFeature.region_id,
+            func.count(OSMFeature.id).label("osm_count")
+        ).group_by(OSMFeature.region_id).all()
+        osm_counts = {
+            row.region_id: int(row.osm_count)
             for row in rows
             if row.region_id in included_region_ids
         }
 
-        if not image_counts:
+        if not osm_counts:
             folium.LayerControl().add_to(m)
             return m
 
-        max_count = max(image_counts.values())
+        max_count = max(osm_counts.values())
         max_log = math.log1p(max_count) if max_count > 0 else 0
 
         for region in all_regions:
@@ -87,7 +85,7 @@ class WorldImages:
                                region.max_lng, region.max_lat)
             lng, lat = RegionManager.get_region_mid(bbox)
             coords.append([lat, lng])
-            count = image_counts.get(region.id, 0)
+            count = osm_counts.get(region.id, 0)
 
             if max_log > 0:
                 norm = math.log1p(count) / max_log
@@ -104,7 +102,7 @@ class WorldImages:
                                 fill=True,
                                 fillColor=colour,
                                 fillOpacity=1.0,
-                                weight=1,
+                                weight=1
                                 ).add_to(m)
 
         if coords:

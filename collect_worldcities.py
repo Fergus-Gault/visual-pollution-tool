@@ -10,7 +10,7 @@ from src.config import Config
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="World cities collection",
-        description="Collects street view imagery for all cities with population > threshold")
+        description="Collects street view imagery for all cities with population >= threshold")
     parser.add_argument("--file", "-f", default=Config.DEFAULT_CSV)
     parser.add_argument("--min-population", "-p",
                         type=int, default=Config.MIN_POPULATION)
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         pop_idx = header.index("population")
         rows = [
             row for row in reader
-            if row[pop_idx].strip() and float(row[pop_idx].strip()) > args.min_population
+            if row[pop_idx].strip() and float(row[pop_idx].strip()) >= args.min_population
         ]
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="") as tmp:
