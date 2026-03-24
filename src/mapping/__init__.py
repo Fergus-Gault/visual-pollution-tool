@@ -3,7 +3,6 @@ from .map import Mapper
 from .region_images import RegionImages
 from .region_detections import RegionDetections
 from .world_images import WorldImages
-from .world_detections import WorldDetections
 from .world_osm import WorldOSM
 from .world_scores import WorldScores
 
