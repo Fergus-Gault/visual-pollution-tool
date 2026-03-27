@@ -5,7 +5,7 @@ import unicodedata
 
 from sqlalchemy import create_engine, delete, select, func, text
 from sqlalchemy.pool import NullPool
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, joinedload
 
 from src.api.models import BoundingBox
 from .models import Base, Region, Image, Detection, OSMFeature
@@ -179,6 +179,18 @@ class DatabaseManager:
 
     def get_all_images(self):
         return self.images.get_all()
+
+    def get_image_count(self):
+        return self.session.scalar(select(func.count()).select_from(Image)) or 0
+
+    def iter_all_images(self, batch_size=500):
+        stmt = (
+            select(Image)
+            .options(joinedload(Image.region))
+            .execution_options(yield_per=batch_size)
+        )
+        for img in self.session.scalars(stmt):
+            yield img
 
     def get_image_by_id(self, image_id):
         return self.images.get_by_id(image_id)

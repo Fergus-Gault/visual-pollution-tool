@@ -1,7 +1,0 @@
-1. Improve database speeds --- Done ---, add a queue for operations
-2. Add multiprocessing for fetching. Will require multiple API keys.
-3. Improve args. --- Done ---
-4. Move over to postgres for multiple writers to the database.
-5. Fix region overriding logic
-6. Find a way to allow dense and normal scans of regions to be collected.
-7. Map OSM features
