@@ -1,9 +1,11 @@
 import argparse
 import sys
+from io import BytesIO
 from pathlib import Path
 
 import folium
 from folium.plugins import HeatMap
+from PIL import Image as PILImage
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -176,6 +178,18 @@ def add_heatmap_layers(m, detection_points, coverage_points, metric):
     coverage_layer.add_to(m)
 
 
+def save_heatmap_outputs(m, output_dir, region_id):
+    html_output_file = output_dir / f"{region_id}.html"
+    m.save(html_output_file)
+    logger.info(f"Saved heatmap HTML for region {region_id} to {html_output_file}")
+
+    png_output_file = output_dir / f"{region_id}.png"
+    img_data = m._to_png(5)
+    img = PILImage.open(BytesIO(img_data))
+    img.save(png_output_file)
+    logger.info(f"Saved heatmap PNG for region {region_id} to {png_output_file}")
+
+
 def main():
     args = parse_args()
     region_ids = normalize_region_ids(args.region_ids)
@@ -226,9 +240,7 @@ def main():
 
         output_dir = Path(f"maps/{region.country}/{region.city}/heatmaps")
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = output_dir / f"{region.id}.html"
-        m.save(output_file)
-        logger.info(f"Saved heatmap for region {region_id} to {output_file}")
+        save_heatmap_outputs(m, output_dir, region.id)
 
     return 0 if found > 0 else 1
 
