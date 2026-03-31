@@ -1,0 +1,91 @@
+pollutant,rank,region_id,city,country,images,detections,detections_per_image,score,start_captured_at,end_captured_at,dense_scan
+barrier,1,229e0cb5-6cd9-4c43-b538-d8040c555be9,Ash Shihaniyah,Qatar,333,89,0.267267,0.152328,,,false
+barrier,2,7f9ccd8f-6796-4e5c-9c86-14c294241402,Nakhon Ratchasima,Thailand,429,100,0.233100,0.389991,,,false
+barrier,3,efef02de-2781-4f14-8c47-0d979bbd065a,Sejong,"Korea, South",466,97,0.208155,0.134609,,,false
+barrier,4,918ad914-a5d7-4db7-8b5a-5cd8e89b6305,Hamilton,New Zealand,940,182,0.193617,0.225142,,,false
+barrier,5,4f2caacc-8fce-41d2-8b0c-db21a8f73381,Kissimmee,United States,407,77,0.189189,0.215558,,,false
+barrier,6,8e89d44a-5a31-49ef-9b46-c42daf184393,Miramar,United States,509,92,0.180747,0.143903,,,false
+barrier,7,8d6587cf-5f38-451e-82c7-d7d212f4f62e,Christchurch,New Zealand,1401,235,0.167737,0.251746,,,false
+barrier,8,3cfce42e-5eea-487e-99b3-11125abc6290,Gateshead,United Kingdom,499,76,0.152305,0.204001,,,false
+barrier,9,838ab183-631f-4c8b-b721-042bd6613810,Jackson,United States,399,59,0.147870,0.169436,,,false
+barrier,10,b950f6b2-586b-4f85-9ba0-17c943d3b745,Kumi,"Korea, South",369,52,0.140921,0.127960,,,false
+billboard,1,444bb199-8d7d-4ae0-86fd-4c3d7f58edbf,Sri Jayewardenepura Kotte,Sri Lanka,638,672,1.053292,0.477995,,,false
+billboard,2,8f5d9f5a-3918-4cc2-92cd-1e59e97863b0,Maharagama,Sri Lanka,651,678,1.041475,0.420846,,,false
+billboard,3,07f0c641-0255-4b3e-b604-e103bd5670d3,Ranchi,India,408,413,1.012255,0.514729,,,false
+billboard,4,c1d80582-b291-4b4e-9415-3896d537ee46,Haldwani,India,443,434,0.979684,0.489782,,,false
+billboard,5,ffbf435d-c7d5-4ed7-a8eb-aca15657b8b5,Kolkata,India,328,313,0.954268,0.652838,,,false
+billboard,6,9064fb89-d227-4212-874a-c171f3696e3f,Mount Lavinia,Sri Lanka,545,516,0.946789,0.476423,,,false
+billboard,7,2887e06a-07d1-4407-b10d-3a5901516607,Santa Maria,Philippines,416,374,0.899038,0.470865,,,false
+billboard,8,1ef77b5a-6ef5-48bd-b18b-d1c7a54cb44a,Lusaka,Zambia,926,824,0.889849,0.515715,,,false
+billboard,9,c551e6e7-54f1-4276-801d-b1ee2e75d03d,Bhavnagar,India,384,339,0.882812,0.456235,,,false
+billboard,10,2cf223dd-b66a-4557-8014-3e31bcf3997a,Taoyuan District,Taiwan,1558,1373,0.881258,0.427958,,,false
+bin,1,0ed824bd-2861-44d7-9e11-149080e541d8,Santander,Spain,1374,110,0.080058,0.172610,,,false
+bin,2,12c32c7c-2a7d-4964-b179-35ecde37f64c,Barcelona,Spain,1869,146,0.078117,0.173422,,,false
+bin,3,6262bcdc-4513-4994-b6cd-88715f10495a,Sabadell,Spain,975,74,0.075897,0.205649,,,false
+bin,4,b44d23d6-efce-4254-96b7-34a154ff2a7a,Badalona,Spain,971,68,0.070031,0.278956,,,false
+bin,5,ec15e836-69a6-4220-8579-0379a1e323ed,Pamplona,Spain,1110,77,0.069369,0.172718,,,false
+bin,6,878a4801-63dc-47c0-8a9e-8e9d4348d3e7,Girona,Spain,823,46,0.055893,0.238977,,,false
+bin,7,c90247b9-d3d3-4e6a-b73d-3add7afcf126,Huddersfield,United Kingdom,549,29,0.052823,0.298604,,,false
+bin,8,c0be2f7a-bdd5-49c1-a7c3-7ddf5eb14a0a,Coventry,United Kingdom,1294,64,0.049459,0.267736,,,false
+bin,9,2addfb3e-5e72-4848-b199-608b17559abb,Thessaloniki,Greece,2617,124,0.047382,0.253734,,,false
+bin,10,0ae39b3f-86d7-4171-8e96-733a01ed34e8,Cambridge,United Kingdom,1743,80,0.045898,0.263770,,,false
+graffiti,1,4c2db814-1173-4a06-aecd-ec91b093ed65,Santiago,Chile,2691,562,0.208844,0.344513,,,false
+graffiti,2,dfffcd41-1320-421e-8cc1-87abbe426d78,Quito,Ecuador,2176,320,0.147059,0.366402,,,false
+graffiti,3,7b902ac1-b058-441f-9a84-f6cb64b9b40d,Temperley,Argentina,352,44,0.125000,0.319444,,,false
+graffiti,4,08e8e8a8-1f1c-4169-9b46-189eb4e32ecc,San Luis Potosi,Mexico,3713,413,0.111231,0.365143,,,false
+graffiti,5,bb1af97a-ddff-46c9-af49-3d38a00b69cd,Puebla,Mexico,3164,345,0.109039,0.370423,,,false
+graffiti,6,d8ca9330-56a3-4a1d-be0c-0618d6f5e636,Leon de los Aldama,Mexico,3588,384,0.107023,0.370362,,,false
+graffiti,7,4fec1737-678e-4ea5-9364-7f46e2773968,Cuautla,Mexico,1160,121,0.104310,0.322470,,,false
+graffiti,8,43d06398-f65f-4350-9a37-5501b1660a73,Fortaleza,Brazil,9070,946,0.104300,0.000000,,,true
+graffiti,9,4dec79d7-0657-4344-8bfb-5eb2e27720f9,Nezahualcoyotl,Mexico,1593,163,0.102323,0.377479,,,false
+graffiti,10,cefe349d-62d2-4512-9fd0-56743d9c7b78,Toluca,Mexico,854,85,0.099532,0.366845,,,false
+mobile_advertisement,1,ed0158b0-cd46-474a-8988-c13cefbd24a3,Newcastle,South Africa,340,41,0.120588,0.166764,,,false
+mobile_advertisement,2,c6ec1500-b82b-4633-b834-c6511bc09455,Faisalabad,Pakistan,473,39,0.082452,0.355686,,,false
+mobile_advertisement,3,10733169-657c-4815-ab9b-df26e23b8c5e,Ahmedabad,India,612,45,0.073529,0.356560,,,false
+mobile_advertisement,4,c75cabe4-58da-4d35-9939-04b596fd433d,Stara Zagora,Bulgaria,429,30,0.069930,0.270399,,,false
+mobile_advertisement,5,b608dc45-d30e-43dd-8dc6-33b83966fbc9,Shubra al Khaymah,Egypt,347,21,0.060519,0.367754,,,false
+mobile_advertisement,6,2bdb1e7d-9178-45fd-b21b-133d2ab273f3,Kinshasa,Congo (Kinshasa),600,35,0.058333,0.491336,,,false
+mobile_advertisement,7,00752ffc-0aa8-46d6-b7b9-9e1ee9db8a2d,Kariya,Japan,339,19,0.056047,0.226589,,,false
+mobile_advertisement,8,9e77984e-84b8-4d5c-b449-3b8ba3e2131a,Ghaziabad,India,455,24,0.052747,0.395333,,,false
+mobile_advertisement,9,072da043-b15d-4af4-a66b-c727b4f953b0,Khulna,Bangladesh,382,20,0.052356,0.328661,,,false
+mobile_advertisement,10,da0a024d-c04f-4027-983c-c5ed8629c117,Villahermosa,Mexico,425,22,0.051765,0.333975,,,false
+pothole,1,0108c0d8-ce39-4eac-a6fd-b44b70d6f3b5,Kenema,Sierra Leone,938,37,0.039446,0.273095,,,false
+pothole,2,4faabf5b-2299-4704-8649-2c9fbe0dbea9,Bandundu,Congo (Kinshasa),462,9,0.019481,0.208617,,,false
+pothole,3,7c6be3a4-12ac-471f-8a6a-98cdf02bca98,Dera Ghazi Khan,Pakistan,304,5,0.016447,0.311247,,,false
+pothole,4,25599827-ed9c-4dec-aad3-6437d96037d7,Gulu,Uganda,677,10,0.014771,0.258708,,,false
+pothole,5,69a07c7e-4bb9-4e42-ab52-04f5586fbf39,Koidu,Sierra Leone,961,14,0.014568,0.290179,,,false
+pothole,6,ab874410-2938-4593-9e6b-b4f405c3c7fc,Lahore,Pakistan,3276,46,0.014042,0.504066,,,false
+pothole,7,fa685e2a-a635-4595-a696-da37371913be,Veraval,India,866,12,0.013857,0.323232,,,false
+pothole,8,3e388b7b-7f22-4649-9da0-4b5fa053525c,Harare,Zimbabwe,876,11,0.012557,0.470959,,,false
+pothole,9,c826ca8a-78c7-411a-9a9f-b82168f87066,Tver,Russia,495,6,0.012121,0.272430,,,false
+pothole,10,6e5dcf02-85d7-44ef-a63b-180be79b7a91,Abomey-Calavi,Benin,413,5,0.012107,0.185681,,,false
+road_sign,1,b0021315-b273-45e9-99b8-fa4d56635b05,Shenzhen,China,477,624,1.308176,0.070684,,,false
+road_sign,2,11844974-af3d-47ca-a76a-70a84234f4a6,Lipetsk,Russia,366,390,1.065574,0.118750,,,false
+road_sign,3,d1c3ece6-05ac-405d-871a-12bca2e3c764,Fuenlabrada,Spain,484,443,0.915289,0.161413,,,false
+road_sign,4,9d9f9441-f777-4a1f-81d4-c3cb442cb116,Ivanovo,Russia,1551,1418,0.914249,0.241785,,,false
+road_sign,5,eacad16a-f440-40fb-be9f-8a57ae91a07a,Taiyuan,China,356,323,0.907303,0.224769,,,false
+road_sign,6,5f2b12f1-f9f5-4d3e-9b58-5059b29e845d,Guadalajara,Spain,428,386,0.901869,0.129973,,,false
+road_sign,7,caf4e29a-8c5d-44ba-b2dd-f9c955d0660b,Pskov,Russia,462,415,0.898268,0.211729,,,false
+road_sign,8,45514adb-518c-4f72-a13e-47e30416a2d0,Guang'an,China,311,276,0.887460,0.168455,,,false
+road_sign,9,5eeb6d50-5645-48a1-8f2a-27b99495b3b1,Bialystok,Poland,753,657,0.872510,0.200369,,,false
+road_sign,10,b58394a2-bdc8-4bfe-8e3f-52403a5306f0,Krasnodar,Russia,1463,1228,0.839371,0.240931,,,false
+shop_sign,1,4fb9f663-bd86-40bb-823c-a0156f7e9509,Sharjah,United Arab Emirates,1986,828,0.416918,0.299792,,,false
+shop_sign,2,7ebbc995-93e3-4426-b810-eb611ba5352b,Kaohsiung,Taiwan,1702,674,0.396005,0.358674,,,false
+shop_sign,3,ada6f333-2ff9-4e58-a1aa-0d80a494712f,Ar Rusayfah,Jordan,496,177,0.356855,0.282559,,,false
+shop_sign,4,f8a4ee88-865f-40ae-9198-ccbf20c9ce83,Bursa,Turkey,358,124,0.346369,0.337646,,,false
+shop_sign,5,1e7b989b-6cc1-4c74-853a-199127803f59,Puyang,China,1123,361,0.321460,0.305783,,,false
+shop_sign,6,2cf223dd-b66a-4557-8014-3e31bcf3997a,Taoyuan District,Taiwan,1558,500,0.320924,0.427958,,,false
+shop_sign,7,e2c4d70a-e4aa-4f02-9eb0-edfc8bf56444,Amman,Jordan,2569,782,0.304399,0.292255,,,false
+shop_sign,8,ab874410-2938-4593-9e6b-b4f405c3c7fc,Lahore,Pakistan,3276,944,0.288156,0.504066,,,false
+shop_sign,9,2ce4ceb2-6bd7-4ebd-88e3-4df7240cd36f,Rahimyar Khan,Pakistan,302,86,0.284768,0.327615,,,false
+shop_sign,10,c6ec1500-b82b-4633-b834-c6511bc09455,Faisalabad,Pakistan,473,127,0.268499,0.355686,,,false
+utility_pole,1,798c4bf0-a169-4296-9585-abeaac1261c0,Anjomachi,Japan,977,1983,2.029683,0.282730,,,false
+utility_pole,2,799b2fb1-5881-4b83-bb7d-cc74c43bc198,Aguadilla,Puerto Rico,350,710,2.028571,0.181906,,,false
+utility_pole,3,001fe0fa-5168-4b96-95b6-f53a04f3c780,Okinawa,Japan,1099,2219,2.019108,0.238628,,,false
+utility_pole,4,594bf16a-587a-4f11-9e0b-51a719d05cd5,Ishizaki,Japan,627,1228,1.958533,0.264900,,,false
+utility_pole,5,20f3b306-b80b-4ac9-a888-e809dd79c370,Koshigaya,Japan,727,1334,1.834938,0.310107,,,false
+utility_pole,6,fe17326c-fd3e-4b81-9775-72917942e4d5,Nagareyama,Japan,1476,2642,1.789973,0.241649,,,false
+utility_pole,7,cef93bcf-3ee4-4916-8ff7-061ee2682d3c,Nakhon Si Thammarat,Thailand,416,738,1.774038,0.389289,,,false
+utility_pole,8,3fc225a5-a124-4af4-8f38-119bed7138b4,Rio Branco,Brazil,575,1015,1.765217,0.352195,,,false
+utility_pole,9,d76c7c47-aad4-499c-9137-601eb6727427,Fujita,Japan,1914,3352,1.751306,0.327361,,,false
+utility_pole,10,414cdbbd-e463-425b-ae19-5691e1538fbf,Yaizu,Japan,431,743,1.723898,0.235485,,,false

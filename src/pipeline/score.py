@@ -12,14 +12,12 @@ class Scorer:
         self.osm_weight = ScoreConfig.OSM_WEIGHT
         self.db = db
 
-    def score_region(self, region_id, method="naive"):
-        if method == "naive":
-            return self._score_region_naive(region_id)
-        if method == "bulk":
+    def score_region(self, region_id, method="vpi"):
+        if method == "vpi":
             scores = self.score_regions(
                 [region_id], apply_image_threshold=True)
             return scores.get(region_id, 0.0)
-        if method in ("bulk_osm", "bulk_with_osm"):
+        elif method == "vpi_osm":
             scores = self.score_regions_with_osm(
                 [region_id], apply_image_threshold=True)
             return scores.get(region_id, 0.0)
@@ -195,29 +193,3 @@ class Scorer:
             return 0.0
         return score
 
-    def _score_region_naive(self, region_id):
-        if not self.severity_scores:
-            return 0.0
-
-        labels = defaultdict(int)
-        detections_in_region = self.db.get_detections_by_region(region_id)
-        imgs_in_region = len(self.db.get_images_by_region(region_id))
-        if not detections_in_region or imgs_in_region < ScoreConfig.FEATURES_PER_REGION_THRESHOLD:
-            return 0.0
-
-        for det in detections_in_region:
-            label = det.label
-            if label in self.severity_scores:
-                labels[label] += 1
-
-        if not labels:
-            return 0.0
-
-        ccr = len(labels)/len(self.severity_scores)
-        sws = sum(self.severity_scores[label] *
-                  count for label, count in labels.items())/len(detections_in_region)
-
-        score = ccr * sws
-        if not math.isfinite(score):
-            return 0.0
-        return score

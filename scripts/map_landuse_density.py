@@ -22,9 +22,6 @@ from src.utils import RegionManager, setup_logger
 
 logger = setup_logger(__name__)
 
-ARCGIS_TILES_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-ARCGIS_TILES_ATTR = "Tiles (C) Esri"
-
 LANDUSE_ORDER = [
     "commercial",
     "residential",
@@ -312,14 +309,9 @@ def make_label_map(region, dissolved_polygons, label, label_density_df):
 
     _, centre = RegionManager.get_combined_bbox([region])
     m = folium.Map(location=[centre[1], centre[0]],
-                   zoom_start=MapConfig.ZOOM_START)
-
-    folium.TileLayer(
-        tiles=ARCGIS_TILES_URL,
-        attr=ARCGIS_TILES_ATTR,
-        overlay=False,
-        name="ArcGIS World Imagery",
-    ).add_to(m)
+                   zoom_start=MapConfig.ZOOM_START,
+                   tiles=MapConfig.get_tiles_url(),
+                   attr=MapConfig.TILES_ATTR)
 
     for poly in dissolved_polygons.itertuples(index=False):
         landuse = poly.landuse_class
