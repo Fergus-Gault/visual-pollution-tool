@@ -104,6 +104,7 @@ python run_inference.py --city <city (optional)> --country <country (optional)>
 The project provides two files for a training pipeline.
 
 - `create_dataset.py` - This pulls annotated images from Label Studio (which must be running), and exports the bounding boxes and image paths to an .ndjson file, it also downloads the images.
+- `download_data.py` - This exports the full database-backed image collection as tar shards plus an `index.ndjson`, preserving the original image bytes while avoiding millions of loose image files.
 - `train.py` - This takes the generated .ndjson file as an input, and then trains a YOLO model. Images are augmented using the `albumentations` library, these augmentations can be modified in `src/config/config.py`
 
 ## Typical Workflow

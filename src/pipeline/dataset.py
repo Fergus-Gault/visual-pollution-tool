@@ -1,25 +1,41 @@
 from src.utils import convert_ls_to_yolo, setup_logger
 from src.config import TrainConfig, PipelineConfig
 from collections import defaultdict, Counter
-import random
 import json
+import mimetypes
+import random
+import tarfile
+import tempfile
+from concurrent.futures import (
+    ALL_COMPLETED,
+    FIRST_COMPLETED,
+    ThreadPoolExecutor,
+    as_completed,
+    wait,
+)
 from pathlib import Path
+from urllib.parse import urlparse
 from uuid import uuid4
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED, as_completed
-from tqdm import tqdm
+
 import requests
+from tqdm import tqdm
 
 logger = setup_logger(__name__)
 
 
 class DatasetManager:
-    def __init__(self, db, name=uuid4(), base_path=None):
+    def __init__(self, db, name=uuid4(), base_path=None, shard_size=10000):
         self.db = db
         self.uuid = str(name)[:8]
         self.ds_name = f"dataset_{self.uuid}"
         base_dir = Path(base_path) if base_path is not None else Path("./datasets")
         self.folder_path = base_dir / self.ds_name
         self.out_path = Path(f"{self.folder_path}/{self.ds_name}.ndjson")
+        self.index_path = self.folder_path / "index.ndjson"
+        self.meta_path = self.folder_path / "dataset.json"
+        self.shards_path = self.folder_path / "shards"
+        self.tmp_path = self.folder_path / ".tmp"
+        self.shard_size = max(1, int(shard_size))
         self.out_path.parent.mkdir(parents=True, exist_ok=True)
 
     def create_dataset(self, annotated_imgs):
@@ -32,7 +48,7 @@ class DatasetManager:
     
     def download_data(self):
         self._stream_download_data()
-        return self.ds_name
+        return str(self.folder_path)
 
     def _sort_countries(self, yolo_format):
         sorted_by_country = defaultdict(list)
@@ -261,8 +277,35 @@ class DatasetManager:
         }
         file_obj.write(json.dumps(meta) + "\n")
 
+    def _write_dataset_meta(self):
+        meta = {
+            "type": "dataset",
+            "task": "detect",
+            "name": "VP Detection",
+            "description": "Dataset containing images of visual pollution",
+            "class_names": TrainConfig.LABELS_INV,
+            "format": {
+                "storage": "tar-shards",
+                "index": "ndjson",
+                "preserves_original_bytes": True,
+                "shard_size": self.shard_size,
+            },
+            "paths": {
+                "index": self.index_path.name,
+                "shards": self.shards_path.name,
+            },
+        }
+
+        with open(self.meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+            f.write("\n")
+
     def _stream_download_data(self):
         total_images = self.db.get_image_count()
+        self.shards_path.mkdir(parents=True, exist_ok=True)
+        self.tmp_path.mkdir(parents=True, exist_ok=True)
+        self._write_dataset_meta()
+
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=PipelineConfig.NUM_WORKERS,
@@ -274,57 +317,66 @@ class DatasetManager:
 
         max_in_flight = max(1, PipelineConfig.NUM_WORKERS * 2)
         futures = set()
-        stats = {"downloaded": 0, "failed": 0}
+        stats = {"downloaded": 0, "failed": 0, "shards": 0}
 
-        with open(self.out_path, "w", encoding="utf-8") as f:
-            self._write_ndjson_meta(f)
+        with open(self.index_path, "w", encoding="utf-8") as index_file:
+            with self._open_shard(0) as shard:
+                shard_state = {"idx": 0, "count": 0}
 
-            with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
-                with tqdm(total=total_images, desc="Downloading images", unit="img") as pbar:
-                    for img in self.db.iter_all_images():
-                        region = getattr(img, "region", None)
-                        record = self._build_db_image_record(img, region)
-                        country = getattr(region, "country", None) or "unknown"
+                with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
+                    with tqdm(total=total_images, desc="Downloading images", unit="img") as pbar:
+                        for img in self.db.iter_all_images():
+                            region = getattr(img, "region", None)
+                            record = self._build_db_image_record(img, region)
+                            country = getattr(region, "country", None) or "unknown"
 
-                        future = executor.submit(
-                            self._download_single,
-                            record,
-                            country,
-                            session,
-                        )
-                        futures.add(future)
-
-                        if len(futures) >= max_in_flight:
-                            futures = self._flush_completed_downloads(
-                                futures,
-                                f,
-                                pbar,
-                                stats,
-                                wait_for_all=False,
+                            future = executor.submit(
+                                self._download_single,
+                                record,
+                                country,
+                                session,
                             )
+                            futures.add(future)
 
-                        try:
-                            self.db.session.expunge(img)
-                        except Exception:
-                            pass
-                        if region is not None:
+                            if len(futures) >= max_in_flight:
+                                futures, shard = self._flush_completed_downloads(
+                                    futures,
+                                    index_file,
+                                    shard,
+                                    shard_state,
+                                    pbar,
+                                    stats,
+                                    wait_for_all=False,
+                                )
+
                             try:
-                                self.db.session.expunge(region)
+                                self.db.session.expunge(img)
                             except Exception:
                                 pass
+                            if region is not None:
+                                try:
+                                    self.db.session.expunge(region)
+                                except Exception:
+                                    pass
 
-                    while futures:
-                        futures = self._flush_completed_downloads(
-                            futures,
-                            f,
-                            pbar,
-                            stats,
-                            wait_for_all=True,
-                        )
+                        while futures:
+                            futures, shard = self._flush_completed_downloads(
+                                futures,
+                                index_file,
+                                shard,
+                                shard_state,
+                                pbar,
+                                stats,
+                                wait_for_all=True,
+                            )
 
-    def _flush_completed_downloads(self, futures, file_obj, pbar, stats, wait_for_all):
+                stats["shards"] = shard_state["idx"] + 1 if shard_state["count"] > 0 else shard_state["idx"]
+
+        session.close()
+
+    def _flush_completed_downloads(self, futures, index_file, shard, shard_state, pbar, stats, wait_for_all):
         if not futures:
-            return futures
+            return futures, shard
 
         return_when = ALL_COMPLETED if wait_for_all else FIRST_COMPLETED
         done, pending = wait(futures, return_when=return_when)
@@ -332,17 +384,25 @@ class DatasetManager:
         for future in done:
             success, _, data = future.result()
             if success:
-                record = dict(data)
-                record["split"] = "all"
-                file_obj.write(json.dumps(record) + "\n")
+                shard = self._write_downloaded_sample(
+                    data,
+                    shard,
+                    shard_state,
+                    index_file,
+                )
                 stats["downloaded"] += 1
             else:
                 stats["failed"] += 1
             pbar.update(1)
 
-        pbar.set_postfix(downloaded=stats["downloaded"], failed=stats["failed"], queued=len(pending))
-        file_obj.flush()
-        return pending
+        pbar.set_postfix(
+            downloaded=stats["downloaded"],
+            failed=stats["failed"],
+            shard=shard_state["idx"],
+            queued=len(pending),
+        )
+        index_file.flush()
+        return pending, shard
 
     def _download_images(self, images):
         session = requests.Session()
@@ -368,9 +428,11 @@ class DatasetManager:
                 for future in as_completed(future_to_download):
                     success, country, data = future.result()
                     if success:
+                        self._materialise_temp_download(data)
                         downloaded_imgs[country].append(data)
                     pbar.update(1)
 
+        session.close()
         return downloaded_imgs
 
     def _download_single(self, data, country, session: requests.Session):
@@ -380,18 +442,127 @@ class DatasetManager:
         if not img_id or not url:
             return False, country, data
 
+        tmp_file = None
+        resp = None
         try:
-            resp = session.get(url, timeout=30)
+            resp = session.get(url, timeout=30, stream=True)
             resp.raise_for_status()
+            suffix = self._guess_image_suffix(url, resp.headers.get("Content-Type"))
 
-            Path(self.folder_path).mkdir(parents=True, exist_ok=True)
-            path = Path(self.folder_path) / f"{img_id}.jpg"
+            with tempfile.NamedTemporaryFile(
+                dir=self.tmp_path,
+                prefix=f"{img_id}_",
+                suffix=suffix,
+                delete=False,
+            ) as tmp_file:
+                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        tmp_file.write(chunk)
 
-            with open(path, "wb") as f:
-                f.write(resp.content)
-
-            data["file"] = f"{img_id}.jpg"
+            data["file_ext"] = suffix
+            data["content_type"] = resp.headers.get("Content-Type")
+            data["temp_file"] = tmp_file.name
+            data["source_url"] = url
             return True, country, data
 
         except Exception:
+            if tmp_file is not None:
+                try:
+                    Path(tmp_file.name).unlink(missing_ok=True)
+                except Exception:
+                    pass
             return False, country, data
+        finally:
+            try:
+                resp.close()
+            except Exception:
+                pass
+
+    def _open_shard(self, shard_idx):
+        shard_name = self._shard_name(shard_idx)
+        return tarfile.open(self.shards_path / shard_name, mode="w")
+
+    def _shard_name(self, shard_idx):
+        return f"shard-{shard_idx:06d}.tar"
+
+    def _write_downloaded_sample(self, data, shard, shard_state, index_file):
+        if shard_state["count"] >= self.shard_size:
+            shard.close()
+            shard_state["idx"] += 1
+            shard_state["count"] = 0
+            shard = self._open_shard(shard_state["idx"])
+
+        img_id = data["image_id"]
+        file_ext = data.get("file_ext") or ".jpg"
+        image_member = f"{img_id}{file_ext}"
+        meta_member = f"{img_id}.json"
+        temp_path = Path(data["temp_file"])
+
+        try:
+            image_info = tarfile.TarInfo(name=image_member)
+            image_info.size = temp_path.stat().st_size
+            with open(temp_path, "rb") as img_file:
+                shard.addfile(image_info, img_file)
+
+            record = dict(data)
+            record.pop("temp_file", None)
+            record["file"] = image_member
+            record["metadata_file"] = meta_member
+            record["split"] = "all"
+            record["shard"] = self._shard_name(shard_state["idx"])
+
+            encoded_meta = json.dumps(record).encode("utf-8")
+            meta_info = tarfile.TarInfo(name=meta_member)
+            meta_info.size = len(encoded_meta)
+            shard.addfile(meta_info, fileobj=self._bytes_io(encoded_meta))
+
+            index_record = {
+                "image_id": img_id,
+                "shard": record["shard"],
+                "file": image_member,
+                "metadata_file": meta_member,
+                "url": record.get("url"),
+                "width": record.get("width"),
+                "height": record.get("height"),
+                "country": record.get("country"),
+                "city": record.get("city"),
+                "region_id": record.get("region_id"),
+                "region_name": record.get("region_name"),
+                "lat": record.get("lat"),
+                "lng": record.get("lng"),
+                "prediction_count": len(record.get("predictions", [])),
+                "annotation_count": len(record.get("annotations", {}).get("boxes", [])),
+                "split": "all",
+            }
+            index_file.write(json.dumps(index_record) + "\n")
+            shard_state["count"] += 1
+            return shard
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    def _materialise_temp_download(self, data):
+        Path(self.folder_path).mkdir(parents=True, exist_ok=True)
+        suffix = data.get("file_ext") or ".jpg"
+        dest_path = Path(self.folder_path) / f"{data['image_id']}{suffix}"
+        temp_path = Path(data["temp_file"])
+        temp_path.replace(dest_path)
+        data.pop("temp_file", None)
+        data["file"] = dest_path.name
+
+    def _bytes_io(self, data):
+        from io import BytesIO
+
+        return BytesIO(data)
+
+    def _guess_image_suffix(self, url, content_type=None):
+        parsed = urlparse(url)
+        suffix = Path(parsed.path).suffix.lower()
+        if suffix in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}:
+            return suffix
+
+        guessed = mimetypes.guess_extension((content_type or "").split(";")[0].strip())
+        if guessed == ".jpe":
+            return ".jpg"
+        if guessed:
+            return guessed
+        return ".jpg"

@@ -5,6 +5,7 @@ import folium
 from src.database import DatabaseManager
 from src.utils import setup_logger
 from .region_images import RegionImages
+from .country_detections import CountryDetections
 from .region_detections import RegionDetections
 
 logger = setup_logger(__name__)
@@ -51,3 +52,8 @@ class Mapper:
 
     def map_region_detections(self, regions):
         return RegionDetections.map_region_detections(self.db, regions)
+
+    def map_country_detections(self, country, target_hex_count=None):
+        return CountryDetections.map_country_detections(
+            self.db, country, target_hex_count=target_hex_count
+        )
