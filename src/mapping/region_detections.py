@@ -30,7 +30,7 @@ class RegionDetections:
         m = folium.Map(location=[centre[1], centre[0]],
                        zoom_start=MapConfig.ZOOM_START,
                        tiles=MapConfig.get_tiles_url(),
-                       attr=MapConfig.TILES_ATTR)
+                       attr=MapConfig.get_tiles_attr())
         detection_counts = {}
         for det in all_detections:
             det_t = det.label

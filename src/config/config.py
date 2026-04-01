@@ -120,6 +120,8 @@ class MapConfig:
     }
     STADIA_STYLE = "alidade_smooth"
     TILES_ATTR = '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    OSM_TILES_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    OSM_TILES_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     ZOOM_START = 13
 
     @staticmethod
@@ -129,7 +131,15 @@ class MapConfig:
         base = f"https://tiles.stadiamaps.com/tiles/{MapConfig.STADIA_STYLE}/{{z}}/{{x}}/{{y}}{{r}}.png"
         if api_key:
             return f"{base}?api_key={api_key}"
-        return base
+        return MapConfig.OSM_TILES_URL
+
+    @staticmethod
+    def get_tiles_attr():
+        env = dotenv_values(Config.ENV_PATH)
+        api_key = env.get("STADIA_MAPS_API")
+        if api_key:
+            return MapConfig.TILES_ATTR
+        return MapConfig.OSM_TILES_ATTR
 
 
 class LSConfig:

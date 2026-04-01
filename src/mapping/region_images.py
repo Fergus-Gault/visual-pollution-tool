@@ -29,7 +29,7 @@ class RegionImages:
         m = folium.Map(location=[centre[1], centre[0]],
                        zoom_start=MapConfig.ZOOM_START,
                        tiles=MapConfig.get_tiles_url(),
-                       attr=MapConfig.TILES_ATTR)
+                       attr=MapConfig.get_tiles_attr())
 
         source_counts = {}
         for img in all_images:

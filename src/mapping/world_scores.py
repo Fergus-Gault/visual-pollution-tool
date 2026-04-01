@@ -24,7 +24,7 @@ class WorldScores:
         m = folium.Map(location=[20, 0],
                        zoom_start=2,
                        tiles=MapConfig.get_tiles_url(),
-                       attr=MapConfig.TILES_ATTR,
+                       attr=MapConfig.get_tiles_attr(),
                        prefer_canvas=True)
 
         scores = [

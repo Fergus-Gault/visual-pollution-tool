@@ -1,122 +1,267 @@
-
 # Visual Pollution Tool
 
 ## Overview
 
-This project provides an end-to-end pipeline for collecting, annotating, and analysing visual pollution using large-scale street-view imagery. It is designed to support dataset creation, model training, and inference for research and experimentation.
+This project provides an end-to-end pipeline for collecting, annotating, and analysing visual pollution using large-scale street-view imagery. It is designed to support dataset creation, model training, inference, mapping, and region-level scoring for research and experimentation.
 
-The tool supports automated data collection, visualisation, annotation via Label Studio, and training and evaluation of object detection models.
+At a high level, the workflow is:
+
+1. Collect imagery and metadata into the database.
+2. Run inference and generate maps.
+3. Upload samples to Label Studio for annotation.
+4. Export labelled data for downstream training.
+5. Train and validate a YOLO model.
+6. Score regions using model detections and optionally OSM features.
 
 ## Key Features
 
 - Large-scale street-view image collection from Mapillary and KartaView
-- OpenStreetMap data integration for city boundaries
+- OpenStreetMap data integration for city boundaries and region features
 - Interactive visualisation of images and detections using Folium
-- Integrated Label Studio setup for annotation
-- Dataset export and augmentation for training
-- YOLO model training and evaluation
-- Inference on collected imagery
+- Label Studio integration for annotation
+- Dataset export for training and bulk data download as tar shards
+- YOLO model training, validation, and inference
+- Region scoring for downstream analysis
 
-## Installation
+## Project Setup
 
-Clone the repository:
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Fergus-Gault/visual-pollution-tool.git
 cd visual-pollution-tool
 ```
 
-Create and activate a virtual environment, then install dependencies:
+### 2. Create a virtual environment
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Configuration
+### 4. Create `auth/.env`
 
-### Mapillary API token
+The project reads configuration from `auth/.env` by default. Create that file and add the values you need:
 
-Obtain an API token from the [Mapillary developer dashboard](https://www.mapillary.com/dashboard/developers).
-Create a file at `./auth/.env` containing:
-
-```bash
-MAPILLARY_ACCESS_TOKEN=<your_token>
+```env
+DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<database>
+MAPILLARY_ACCESS_TOKEN=<your_mapillary_token>
+KARTAVIEW_ACCESS_TOKEN=<optional_kartaview_token>
+LABEL_STUDIO_API_KEY=<your_label_studio_api_key>
+STADIA_MAPS_API=<optional_stadia_maps_key>
+EXTRA_TOKEN_1=<optional_extra_mapillary_token>
+EXTRA_TOKEN_2=<optional_extra_mapillary_token>
+EXTRA_TOKEN_3=<optional_extra_mapillary_token>
 ```
 
-Alternatively, place the token in another location and update the path in `src/config/config.py`.
+Notes:
 
-## Usage
+- `DATABASE_URL` is required. The application expects a PostgreSQL database.
+- `MAPILLARY_ACCESS_TOKEN` is required for Mapillary collection.
+- `KARTAVIEW_ACCESS_TOKEN` is optional. It is only needed if you want authenticated KartaView requests.
+- `LABEL_STUDIO_API_KEY` is needed for `label.py` and `create_dataset.py`.
+- `STADIA_MAPS_API` is optional. Without it, maps still use the Stadia tile URL, but adding a key is recommended.
+- `EXTRA_TOKEN_1` to `EXTRA_TOKEN_3` are optional helper tokens for higher-throughput multi-process collection.
 
-### Data collection
+### 5. Start supporting services when needed
 
-Run:
+Some workflows depend on external services:
 
-```bash
-python collect.py <file_or_city> [options]
-```
+- PostgreSQL must be running before collection, inference, scoring, or dataset export.
+- Label Studio must be running at `http://localhost:8080` before `label.py` or `create_dataset.py`.
 
-### Arguments
-
-**file_or_city**
-
-- Either a city name (for example `edinburgh`).
-- Or a path to a text file containing one city name per line.
-
-**Options**
-
-- `--country` - Pairs with the city for greater accuracy if multiple cities exist with the same name.
-- `--debug` - Enter debug mode.
-- `--collect-only` - Only collect imagery and metadata. Skip inference even if a model is provided.
-- `--override` - Force a rescan of a city even if it is already in the database. **Warning: This will delete the current data for that city in the database.**
-- `--region-method <method>` - Either "shape" or "region", defaults to "shape". Collect images using normal regions instead of shape files.
-- `--dense` - Scan a specific region with more subregions, only works for individual cities and not files.
-- `--fetch-osm` - Fetch OSM points for a region. Disabled by default due to API limitations.
-
-### Data labelling
-
-Run:
+Start Label Studio with:
 
 ```bash
 label-studio start
 ```
 
-In another terminal run:
+## Root Directory Scripts
+
+The repository root contains the main entry-point scripts. You usually run these directly with `python <script>.py`.
+
+### Collection and ingestion
+
+#### `collect.py`
+
+Main collection entry point for one city or for a text/CSV file of places.
+
+```bash
+python collect.py <file_or_city> [options]
+```
+
+Examples:
+
+```bash
+python collect.py edinburgh --country uk
+python collect.py cities.txt
+```
+
+Useful options:
+
+- `--country` / `-c`: add a country when collecting a single city
+- `--collect-only`: collect imagery and metadata but skip inference
+- `--override`: rescan a city even if it already exists in the database
+- `--region-method`: choose region construction, defaults to `shape`
+- `--dense`: increase scan density for a single city
+- `--fetch-osm`: also fetch OSM features
+- `--debug`: enable debug mode
+
+Use this when you want to populate the database for a specific city or a small list of cities.
+
+#### `collect_worldcities.py`
+
+Batch collection entry point for many cities from a CSV, filtered by population.
+
+```bash
+python collect_worldcities.py --file data/worldcities.csv --min-population 100000
+```
+
+The default `data/worldcities.csv` dataset comes from [SimpleMaps World Cities](https://simplemaps.com/data/world-cities).
+
+Use this when you want a large-scale multi-city collection run rather than targeted city collection.
+
+### Annotation and dataset creation
+
+#### `label.py`
+
+Uploads a random sample of database images into Label Studio, including model predictions when they exist.
 
 ```bash
 python label.py
 ```
 
-This will import 20 random images per region (configurable) to Label Studio, and attach any predictions from previously run inference.
-To continue labelling just restart Label Studio.
+Use this after you have collected imagery and want to begin manual annotation.
 
-### Inference
+#### `create_dataset.py`
 
-If inference is not done during collection, it can be done afterwards using `run_inference.py`. This script takes two optional arguments, `--city` and `--country`. These can be used to run inference on specific regions, or on all regions if the arguments are excluded.
+Fetches annotated tasks from Label Studio, downloads the underlying images, converts annotations, and creates a labelled dataset export under `./datasets/`.
 
 ```bash
-python run_inference.py --city <city (optional)> --country <country (optional)> 
+python create_dataset.py
 ```
 
-### Training pipeline
+Use this after labelling is complete and you want to export the annotated subset for downstream training work.
 
-The project provides two files for a training pipeline.
+#### `download_data.py`
 
-- `create_dataset.py` - This pulls annotated images from Label Studio (which must be running), and exports the bounding boxes and image paths to an .ndjson file, it also downloads the images.
-- `download_data.py` - This exports the full database-backed image collection as tar shards plus an `index.ndjson`, preserving the original image bytes while avoiding millions of loose image files.
-- `train.py` - This takes the generated .ndjson file as an input, and then trains a YOLO model. Images are augmented using the `albumentations` library, these augmentations can be modified in `src/config/config.py`
+Exports the database-backed image collection into tar shards plus an `index.ndjson` manifest.
 
-## Typical Workflow
+```bash
+python download_data.py [--download-path <path>] [--shard-size <count>]
+```
 
-1. Provide a city or list of cities.
-2. Collect street-view imagery and metadata.
-3. Visualise coverage and detections using Folium.
-4. Import data to Label Studio for annotation.
-5. Export and augment labelled dataset.
-6. Train YOLO models.
-7. Run inference and analyse results.
+Use this when you want a portable bulk export of the collected dataset rather than only the labelled subset.
+
+### Model execution
+
+#### `run_inference.py`
+
+Runs inference on all regions or a filtered city/country selection, then writes region detection maps.
+
+```bash
+python run_inference.py
+python run_inference.py --city Edinburgh --country UK
+```
+
+Use this after collection or after training a new model.
+
+#### `train.py`
+
+Trains the YOLO model from a dataset configuration file.
+
+```bash
+python train.py --path ./data/datasets/v2/data.yaml
+```
+
+Common optional arguments include `--epochs`, `--imgsz`, `--device`, `--base-model`, `--batch`, `--workers`, `--name`, and `--wandb-project`.
+
+Use this once you have a training config such as a `data.yaml` file prepared for the YOLO training run.
+
+#### `validate.py`
+
+Runs validation for a trained model on a chosen split.
+
+```bash
+python validate.py --path ./data/datasets/v2/data.yaml --model-path data/model/best.pt
+```
+
+Use this to evaluate a trained checkpoint on `test`, `val`, or another supported split.
+
+### Analysis
+
+#### `score_regions.py`
+
+Computes region-level scores from detections, with an optional OSM-aware method.
+
+```bash
+python score_regions.py --method vpi
+python score_regions.py --method vpi_osm --city Edinburgh --country UK
+```
+
+Use this after inference when you want comparable regional scores for analysis.
+
+## Typical Workflows
+
+### Collect data for a city and run inference
+
+```bash
+python collect.py edinburgh --country uk --fetch-osm
+python run_inference.py --city Edinburgh --country UK
+```
+
+### Label data and export annotations
+
+```bash
+label-studio start
+python label.py
+python create_dataset.py
+```
+
+### Train and validate a model
+
+```bash
+python train.py --path ./data/datasets/v2/data.yaml
+python validate.py --path ./data/datasets/v2/data.yaml --model-path data/model/best.pt
+```
+
+### Export the full collected dataset
+
+```bash
+python download_data.py --download-path ./exports --shard-size 10000
+```
+
+### Score regions after inference
+
+```bash
+python score_regions.py --method vpi
+```
+
+## Outputs at a Glance
+
+Depending on the script, outputs are typically written to:
+
+- PostgreSQL for collected metadata, regions, detections, and OSM features
+- `./datasets/` for exported datasets created by `create_dataset.py` and `download_data.py`
+- `./data/datasets/` for any YOLO-style training configs and prepared training assets you maintain separately
+- `./data/model/` for trained model checkpoints
+- `./data/` for generated scores and other exported artifacts
 
 ## Project Status
 
-This project is for my disseratation, and therefore is under active development.
+This project has been completed as part of a dissertation. Small updates may be made for maintenance or to fix issues, but no major new features are planned. The code is provided as-is for research and experimentation purposes.
