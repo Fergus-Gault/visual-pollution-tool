@@ -75,10 +75,54 @@ Notes:
 - `MAPILLARY_ACCESS_TOKEN` is required for Mapillary collection.
 - `KARTAVIEW_ACCESS_TOKEN` is optional. It is only needed if you want authenticated KartaView requests.
 - `LABEL_STUDIO_API_KEY` is needed for `label.py` and `create_dataset.py`.
-- `STADIA_MAPS_API` is optional. Without it, maps still use the Stadia tile URL, but adding a key is recommended.
+- `STADIA_MAPS_API` is optional. If it is not provided, the mapping code falls back to OpenStreetMap tiles.
 - `EXTRA_TOKEN_1` to `EXTRA_TOKEN_3` are optional helper tokens for higher-throughput multi-process collection.
 
-### 5. Start supporting services when needed
+### 5. Restore a `database.dump` into PostgreSQL
+
+If you have been given a `database.dump` file, you can restore it into a local PostgreSQL database before running the project.
+
+Create the target database first:
+
+```bash
+createdb visual_pollution
+```
+
+Then restore the dump:
+
+```bash
+pg_restore -d visual_pollution path/to/database.dump
+```
+
+If your PostgreSQL setup requires an explicit user or host, use:
+
+```bash
+createdb -U postgres -h localhost visual_pollution
+pg_restore -U postgres -h localhost -d visual_pollution path/to/database.dump
+```
+
+Set `DATABASE_URL` in `auth/.env` to point at that database:
+
+```env
+DATABASE_URL=postgresql://postgres:<password>@localhost:5432/visual_pollution
+```
+
+URL structure:
+
+- `postgresql://` is the driver prefix
+- `<user>` is your PostgreSQL username
+- `<password>` is your PostgreSQL password
+- `<host>` is usually `localhost` for a local database
+- `<port>` is usually `5432`
+- `<database>` is the database name you restored into, for example `visual_pollution`
+
+Example with no custom host or port:
+
+```env
+DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/visual_pollution
+```
+
+### 6. Start supporting services when needed
 
 Some workflows depend on external services:
 
