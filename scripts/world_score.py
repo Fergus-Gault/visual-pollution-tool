@@ -1,8 +1,13 @@
-from src.mapping import WorldScores
-from src.database import DatabaseManager
-from pathlib import Path
-from PIL import Image as PILImage
+import sys
 from io import BytesIO
+from pathlib import Path
+
+from PIL import Image as PILImage
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from src.database import DatabaseManager
+from src.mapping import WorldScores
 
 
 if __name__ == "__main__":

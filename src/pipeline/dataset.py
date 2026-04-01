@@ -40,8 +40,8 @@ class DatasetManager:
 
     def create_dataset(self, annotated_imgs):
         yolo_format = convert_ls_to_yolo(annotated_imgs)
-        sorted_countries = self._sort_countries(yolo_format)
-        downloaded_imgs = self._download_images(sorted_countries)
+        dataset_records = self._build_dataset_records(yolo_format)
+        downloaded_imgs = self._download_images(dataset_records)
         ds_split = self._split_dataset(downloaded_imgs)
         self._create_ndjson(ds_split)
         return self.ds_name
@@ -50,15 +50,11 @@ class DatasetManager:
         self._stream_download_data()
         return str(self.folder_path)
 
-    def _sort_countries(self, yolo_format):
-        sorted_by_country = defaultdict(list)
+    def _build_dataset_records(self, yolo_format):
+        dataset_records = []
         for img_id, yolo_annos in yolo_format.items():
             img = self.db.get_image_by_id(img_id)
-            if hasattr(img, "country"):
-                country = img.country
-            else:
-                country = "unknown"
-            sorted_by_country[country].append({
+            dataset_records.append({
                 "type": "image",
                 "image_id": img_id,
                 "url": img.url,
@@ -68,7 +64,7 @@ class DatasetManager:
                     "boxes": yolo_annos
                 },
             })
-        return sorted_by_country
+        return dataset_records
 
     def _build_db_image_record(self, img, region):
         predictions = self._serialise_predictions(img)
@@ -170,10 +166,8 @@ class DatasetManager:
             return None
         return int(class_id)
 
-    def _split_dataset(self, sorted_countries):
-        all_data = [item for country_data in sorted_countries.values()
-                    for item in country_data]
-        n = len(all_data)
+    def _split_dataset(self, dataset_records):
+        n = len(dataset_records)
         if n == 0:
             return {"train": [], "val": [], "test": []}
 
@@ -193,7 +187,7 @@ class DatasetManager:
         }
 
         rng = random.Random(42)
-        data = list(all_data)
+        data = list(dataset_records)
         rng.shuffle(data)
         data.sort(key=lambda rec: len(
             rec.get("annotations", {}).get("boxes", [])), reverse=True)
@@ -404,7 +398,7 @@ class DatasetManager:
         index_file.flush()
         return pending, shard
 
-    def _download_images(self, images):
+    def _download_images(self, dataset_records):
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=PipelineConfig.NUM_WORKERS,
@@ -414,33 +408,32 @@ class DatasetManager:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
 
-        downloaded_imgs = defaultdict(list)
-        total_images = sum(len(country_data) for country_data in images.values())
+        downloaded_imgs = []
+        total_images = len(dataset_records)
 
         with ThreadPoolExecutor(max_workers=PipelineConfig.NUM_WORKERS) as executor:
             future_to_download = {
-                executor.submit(self._download_single, data, country, session):
-                data for country, country_data in images.items()
-                for data in country_data
+                executor.submit(self._download_single, data, session): data
+                for data in dataset_records
             }
 
             with tqdm(total=total_images, desc="Downloading images.") as pbar:
                 for future in as_completed(future_to_download):
-                    success, country, data = future.result()
+                    success, data = future.result()
                     if success:
                         self._materialise_temp_download(data)
-                        downloaded_imgs[country].append(data)
+                        downloaded_imgs.append(data)
                     pbar.update(1)
 
         session.close()
         return downloaded_imgs
 
-    def _download_single(self, data, country, session: requests.Session):
+    def _download_single(self, data, session: requests.Session):
         img_id = data.get("image_id")
         url = data.get("url")
 
         if not img_id or not url:
-            return False, country, data
+            return False, data
 
         tmp_file = None
         resp = None
@@ -463,7 +456,7 @@ class DatasetManager:
             data["content_type"] = resp.headers.get("Content-Type")
             data["temp_file"] = tmp_file.name
             data["source_url"] = url
-            return True, country, data
+            return True, data
 
         except Exception:
             if tmp_file is not None:
@@ -471,7 +464,7 @@ class DatasetManager:
                     Path(tmp_file.name).unlink(missing_ok=True)
                 except Exception:
                     pass
-            return False, country, data
+            return False, data
         finally:
             try:
                 resp.close()
