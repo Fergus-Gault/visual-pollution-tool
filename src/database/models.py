@@ -43,6 +43,7 @@ class Image(Base):
     lat = Column(Float, nullable=True)
     source_captured_at = Column(DateTime, nullable=False)
     url = Column(String, nullable=False)
+    url_fetched_at = Column(DateTime, nullable=True)
     source = Column(String, nullable=True)
     status = Column(String, default="unreviewed", nullable=False)
     width = Column(Integer, nullable=True)

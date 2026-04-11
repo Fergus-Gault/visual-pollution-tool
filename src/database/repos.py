@@ -100,6 +100,7 @@ class ImageRepo(BaseRepo[Image]):
             'lat': img.lat,
             'source_captured_at': img.source_captured_at,
             'url': img.url,
+            'url_fetched_at': img.url_fetched_at or datetime.now(timezone.utc),
             'source': img.source,
             'status': img.status or 'unreviewed',
             'width': img.width,

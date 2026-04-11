@@ -1,6 +1,6 @@
 from dateutil import parser as date_parser
 from dateutil.parser import ParserError
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import unicodedata
 
 from sqlalchemy import create_engine, delete, select, func, text
@@ -36,6 +36,8 @@ class DatabaseManager:
     def _ensure_delete_indexes(self):
         statements = [
             "CREATE INDEX IF NOT EXISTS idx_images_region_id ON images (region_id)",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS url_fetched_at TIMESTAMP WITH TIME ZONE",
+            "CREATE INDEX IF NOT EXISTS idx_images_source_url_fetched_at ON images (source, url_fetched_at)",
             "CREATE INDEX IF NOT EXISTS idx_detections_image_id ON detections (image_id)",
             "CREATE INDEX IF NOT EXISTS idx_osm_features_region_id ON osm_features (region_id)",
         ]
@@ -214,7 +216,7 @@ class DatabaseManager:
         else:
             return None
         image = Image(region=region, lng=lng, lat=lat, id_from_source=id_from_source,
-                      source_captured_at=captured_at, url=url, source=source, width=width, height=height)
+                      source_captured_at=captured_at, url=url, url_fetched_at=datetime.now(timezone.utc), source=source, width=width, height=height)
         try:
             self.images.add(image)
             return True
