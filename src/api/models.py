@@ -71,16 +71,18 @@ class ImageMetadata:
 
     @classmethod
     def from_kartaview(cls, data):
-        file_url = data.get('fileurl', '')
-        if '{{sizeprefix}}' in file_url:
-            file_url = file_url.replace('{{sizeprefix}}', 'lth')
+        image_url = data.get("imageLthUrl", "") or ""
+        if not image_url:
+            image_url = data.get("fileurl", "")
+            if "{{sizeprefix}}" in image_url:
+                image_url = image_url.replace("{{sizeprefix}}", "lth")
 
         return cls(
             id=str(data.get("id", "")),
             geometry=Geometry(
                 coordinates=(data.get("lng", 0.0), data.get("lat", 0.0))
             ),
-            thumb_1024_url=file_url,
+            thumb_1024_url=image_url,
             captured_at=data.get("shotDate", data.get("dateAdded", "")),
             source="kartaview",
             width=data.get("width"),
