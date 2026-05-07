@@ -5,6 +5,7 @@ from src.database import DatabaseManager
 from src.model import YoloModel
 from src.utils import setup_logger, RegionManager
 from src.mapping import Mapper
+from src.api import build_image_apis
 
 from .score import Scorer
 from .scanner import Scanner
@@ -14,9 +15,11 @@ logger = setup_logger(__name__)
 
 
 class Pipeline:
-    def __init__(self, apis=None):
+    def __init__(self, apis=None, image_sources=None):
         self.db = DatabaseManager()
         self.model = YoloModel()
+        if apis is None:
+            apis = build_image_apis(image_sources)
         self.scanner = Scanner(self.db, apis=apis)
         self.mapper = Mapper(self.db)
         self.inference_manager = InferenceManager(self.db, self.model)
@@ -38,6 +41,9 @@ class Pipeline:
 
     def scan_region(self, region_id=None, lng=None, lat=None, override=False, region_method="shape", dense_scan=False, fetch_osm=False, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
         return self.scanner.scan_region(region_id=region_id, lng=lng, lat=lat, override=override, region_method=region_method, dense_scan=dense_scan, fetch_osm=fetch_osm, city=city, country=country, iso3=iso3, population=population, start_captured_at=start_captured_at, end_captured_at=end_captured_at)
+
+    def scan_bbox(self, bbox, gdf=None, override=False, dense_scan=False, fetch_osm=False, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
+        return self.scanner.scan_bbox(bbox=bbox, gdf=gdf, override=override, dense_scan=dense_scan, fetch_osm=fetch_osm, city=city, country=country, iso3=iso3, population=population, start_captured_at=start_captured_at, end_captured_at=end_captured_at)
 
     def score_region(self, region_id, method=None, save=True):
         if region_id is not None:
@@ -119,3 +125,33 @@ class Pipeline:
             self.score_region(region.id)
             self.mapper.save(detections_map, region,
                              map_type="region_detections", file_type="html")
+
+    def run_bbox(self, bbox, gdf=None, city=None, country=None, iso3=None, population=None, collect_only=False, override=False, dense_scan=False, fetch_osm=False, start_captured_at=None, end_captured_at=None, make_maps=False):
+        region = self.scan_bbox(
+            bbox=bbox,
+            gdf=gdf,
+            override=override,
+            dense_scan=dense_scan,
+            fetch_osm=fetch_osm,
+            city=city,
+            country=country,
+            iso3=iso3,
+            population=population,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+        if region is None:
+            logger.warning(
+                f"Region for {city or country or bbox.to_str()} already exists. Skipping.")
+            return
+        if make_maps:
+            region_map = self.mapper.map_region_images(region)
+            self.mapper.save(region_map, region,
+                             map_type="region_images", file_type="html")
+        if self.model.is_loaded() and not collect_only:
+            self.run_inference(region)
+            self.score_region(region.id)
+            if make_maps:
+                detections_map = self.mapper.map_region_detections(region)
+                self.mapper.save(detections_map, region,
+                                 map_type="region_detections", file_type="html")

@@ -27,6 +27,25 @@ class Scanner:
                           start_captured_at=start_captured_at, end_captured_at=end_captured_at)
         return region
 
+    def scan_bbox(self, bbox, gdf=None, override=False, dense_scan=False, fetch_osm=True, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
+        region = self._get_or_create_region_from_bbox(
+            bbox=bbox,
+            override=override,
+            dense_scan=dense_scan,
+            city=city,
+            country=country,
+            iso3=iso3,
+            population=population,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+        if region is None:
+            return None
+        effective_fetch_osm = fetch_osm and not dense_scan
+        self._scan_region(region, gdf, dense_scan, effective_fetch_osm,
+                          start_captured_at=start_captured_at, end_captured_at=end_captured_at)
+        return region
+
     def _scan_region(self, region, gdf, dense_scan, fetch_osm, start_captured_at=None, end_captured_at=None):
         region_bbox = BoundingBox(region.min_lng, region.min_lat,
                                   region.max_lng, region.max_lat)
@@ -254,3 +273,38 @@ class Scanner:
         if region is None:
             region = self.db.get_region_by_name(final_region_name)
         return region, gdf
+
+    def _get_or_create_region_from_bbox(self, bbox, override=False, dense_scan=False, city=None, country=None, iso3=None, population=None, start_captured_at=None, end_captured_at=None):
+        if city is None and country is None:
+            geocoded_city, geocoded_country = RegionManager.geolocate_bbox(bbox)
+            city = city or geocoded_city
+            country = country or geocoded_country
+        if city is None and country is None:
+            return None
+
+        region_name = self.db.build_region_name(
+            bbox,
+            dense_scan=dense_scan,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+        existing = self.db.get_region_by_name(region_name)
+        if existing is not None:
+            if not override:
+                return None
+            self.db.delete_region(existing.id)
+
+        logger.info(f"Adding region for {city}, {country}.")
+        region = self.db.add_region(
+            bbox,
+            city,
+            country,
+            iso3=iso3,
+            population=population,
+            dense_scan=dense_scan,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+        if region is None:
+            region = self.db.get_region_by_name(region_name)
+        return region

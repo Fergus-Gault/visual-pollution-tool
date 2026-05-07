@@ -2,7 +2,8 @@ from src.config import Config, PipelineConfig
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import dotenv_values
-from src.utils import RegionManager, RateLimiter
+from src.utils import RegionManager
+from src.api import build_image_apis
 import csv
 
 
@@ -43,15 +44,10 @@ def _run_region(row, pipeline, collect_only, override, region_method, dense_scan
         start_captured_at=start_captured_at, end_captured_at=end_captured_at)
 
 
-def _run_chunk(chunk, header, token, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
+def _run_chunk(chunk, header, token, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True, image_sources=None):
     from .pipeline import Pipeline
-    from src.api import MapillaryAPI, KartaviewAPI
-    rate_limiter = RateLimiter(max_calls=PipelineConfig.MAPILLARY_RATE_LIMIT)
-    kv_rate_limiter = RateLimiter(
-        max_calls=PipelineConfig.KARTAVIEW_RATE_LIMIT)
-    mapillary = MapillaryAPI(token, rate_limiter=rate_limiter)
     pipeline = Pipeline(
-        apis=[mapillary, KartaviewAPI(rate_limiter=kv_rate_limiter)])
+        apis=build_image_apis(image_sources=image_sources, mapillary_token=token))
     rows = [dict(zip(header, row)) for row in chunk]
     with ThreadPoolExecutor(max_workers=PipelineConfig.REGION_WORKERS) as executor:
         futures = [
@@ -64,13 +60,14 @@ def _run_chunk(chunk, header, token, collect_only=False, override=False, region_
 
 
 class PipelineMP:
-    def __init__(self, file_path, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True):
+    def __init__(self, file_path, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=True, image_sources=None):
         self.file_path = file_path
         self.collect_only = collect_only
         self.override = override
         self.region_method = region_method
         self.dense_scan = dense_scan
         self.fetch_osm = fetch_osm
+        self.image_sources = image_sources
         self.dotenv = dotenv_values(Config.ENV_PATH)
         self.tokens = [self.dotenv.get("MAPILLARY_ACCESS_TOKEN", None), self.dotenv.get(
             "EXTRA_TOKEN_1", None), self.dotenv.get("EXTRA_TOKEN_2", None), self.dotenv.get("EXTRA_TOKEN_3", None)]
@@ -84,7 +81,7 @@ class PipelineMP:
                 target=_run_chunk, args=(chunk, header, self.tokens[idx]),
                 kwargs=dict(collect_only=self.collect_only, override=self.override,
                             region_method=self.region_method, dense_scan=self.dense_scan,
-                            fetch_osm=self.fetch_osm))
+                            fetch_osm=self.fetch_osm, image_sources=self.image_sources))
             processes.append(p)
             p.start()
         for p in processes:

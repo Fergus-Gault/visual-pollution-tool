@@ -13,10 +13,12 @@ if __name__ == "__main__":
     parser.add_argument("--region-method", "-mr", default="shape")
     parser.add_argument("--dense", "-dn", action="store_true")
     parser.add_argument("--fetch-osm", "-fo", action="store_true")
-    pipeline = Pipeline()
+    parser.add_argument("--image-sources", "-is", default="both",
+                        help="Comma-separated image sources: mapillary, kartaview, or both.")
     args = parser.parse_args()
     if args.debug:
         Config.DEBUG = True
+    pipeline = Pipeline(image_sources=args.image_sources)
     if ".csv" in args.fileorcity or ".txt" in args.fileorcity:
         pipeline.run(
             file_path=args.fileorcity, collect_only=args.collect_only, override=args.override, region_method=args.region_method, dense_scan=args.dense, fetch_osm=args.fetch_osm)

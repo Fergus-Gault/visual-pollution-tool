@@ -159,6 +159,7 @@ python collect.py cities.txt
 Useful options:
 
 - `--country` / `-c`: add a country when collecting a single city
+- `--image-sources` / `-is`: choose `mapillary`, `kartaview`, or `both`, defaults to `both`
 - `--collect-only`: collect imagery and metadata but skip inference
 - `--override`: rescan a city even if it already exists in the database
 - `--region-method`: choose region construction, defaults to `shape`
@@ -179,6 +180,47 @@ python collect_worldcities.py --file data/worldcities.csv --min-population 10000
 The default `data/worldcities.csv` dataset comes from [SimpleMaps World Cities](https://simplemaps.com/data/world-cities).
 
 Use this when you want a large-scale multi-city collection run rather than targeted city collection.
+
+#### `collect_country.py`
+
+Splits a country's bounding box into a connected grid of subregions, scans each cell, stores each one as a region, and runs inference through the usual pipeline.
+
+```bash
+python collect_country.py Japan
+python collect_country.py "United Kingdom" --subregions 1000 --collect-only
+```
+
+Useful options:
+
+- `--subregions` / `-sr`: number of connected grid cells to create, defaults to `1000`
+- `--region-mode`: choose `land` or `uniform`, defaults to `land`
+- `--image-sources` / `-is`: choose `mapillary`, `kartaview`, or `both`, defaults to `mapillary`
+- `--collect-only`: collect imagery and metadata but skip inference
+- `--override`: recreate any existing matching subregions
+- `--dense`: use dense imagery collection
+- `--map`: generate image and detection maps for each subregion, off by default
+- OSM feature collection is on by default for each subregion; use `--no-fetch-osm` to disable it
+- `--start-captured-at`: optional lower capture-date bound
+- `--end-captured-at`: optional upper capture-date bound
+
+Use this when you want country-wide coverage rather than city-by-city collection.
+
+#### `show_country_regions.py`
+
+Previews the exact connected subregions that would be created for a country, without collecting imagery or writing to the database.
+
+```bash
+python show_country_regions.py Japan
+python show_country_regions.py "United Kingdom" --subregions 1000
+python show_country_regions.py Indonesia --region-mode uniform
+```
+
+Outputs:
+
+- an HTML preview map under `maps/country_previews/`
+- a CSV of the generated bounding boxes under `data/country_previews/`
+
+Use this when you want to inspect the country-wide grid before running `collect_country.py`.
 
 ### Annotation and dataset creation
 
