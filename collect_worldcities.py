@@ -18,6 +18,8 @@ if __name__ == "__main__":
     parser.add_argument("--collect-only", "-co", action="store_true")
     parser.add_argument("--override", "-or", action="store_true")
     parser.add_argument("--region-method", "-mr", default="shape")
+    parser.add_argument("--image-sources", "-is", default="both",
+                        help="Comma-separated image sources: mapillary, kartaview, or both.")
     parser.add_argument("--dense", "-dn", action="store_true")
     parser.add_argument("--fetch-osm", "-fo",
                         action="store_true", default=True)
@@ -44,7 +46,7 @@ if __name__ == "__main__":
     try:
         pipeline = PipelineMP(tmp_path, collect_only=args.collect_only, override=args.override,
                               region_method=args.region_method, dense_scan=args.dense,
-                              fetch_osm=args.fetch_osm)
+                              fetch_osm=args.fetch_osm, image_sources=args.image_sources)
         pipeline.start_mp()
     finally:
         os.unlink(tmp_path)
