@@ -45,8 +45,23 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--method",
-        choices=["vpi", "vpi_osm"],
+        choices=["vpi", "osm", "vpi_osm"],
         default="vpi",
+    )
+    parser.add_argument(
+        "--update-db",
+        action="store_true",
+        help="Also persist computed scores to region.score in the database.",
+    )
+    parser.add_argument(
+        "--compare-vpi-osm",
+        action="store_true",
+        help="Export a side-by-side comparison of VPI-only and OSM-only scores.",
+    )
+    parser.add_argument(
+        "--exclude-zero-comparisons",
+        action="store_true",
+        help="When comparing VPI and OSM scores, exclude rows where either score is zero.",
     )
     parser.add_argument(
         "--city",
@@ -59,6 +74,10 @@ if __name__ == "__main__":
         help="Optional country filter when using --city.",
     )
     args = parser.parse_args()
+    if args.compare_vpi_osm and args.update_db:
+        parser.error("--compare-vpi-osm cannot be combined with --update-db because it computes two scores per region.")
+    if args.exclude_zero_comparisons and not args.compare_vpi_osm:
+        parser.error("--exclude-zero-comparisons requires --compare-vpi-osm.")
 
     db = DatabaseManager()
     scorer = Scorer(db)
@@ -87,7 +106,7 @@ if __name__ == "__main__":
         region_id: count for region_id, count in image_rows}
 
     osm_feature_count_by_region = {}
-    if args.method == "vpi_osm":
+    if args.method in {"osm", "vpi_osm"} or args.compare_vpi_osm:
         osm_rows = (
             db.session.query(OSMFeature.region_id, func.count(OSMFeature.id))
             .filter(OSMFeature.region_id.in_(region_ids))
@@ -97,18 +116,17 @@ if __name__ == "__main__":
         osm_feature_count_by_region = {
             region_id: count for region_id, count in osm_rows}
 
-    if args.method == "vpi":
+    if args.compare_vpi_osm:
+        vpi_scores_by_region = scorer.score_regions(region_ids=region_ids)
+        osm_scores_by_region = scorer.score_regions_with_osm_only(
+            region_ids=region_ids)
+    elif args.method == "vpi":
         scores_by_region = scorer.score_regions(region_ids=region_ids)
+    elif args.method == "osm":
+        scores_by_region = scorer.score_regions_with_osm_only(
+            region_ids=region_ids)
     else:
         scores_by_region = scorer.score_regions_with_osm(region_ids=region_ids)
-
-    scored_rows = []
-    for region in regions:
-        score = scores_by_region.get(region.id, 0.0)
-        region.score = score
-        scored_rows.append((region.id, region.city, region.country, score))
-
-    db.session.commit()
 
     suffix = ""
     if args.city:
@@ -118,13 +136,73 @@ if __name__ == "__main__":
             country_token = normalize(args.country).replace(" ", "_")
             suffix += f"_{country_token}"
 
+    if args.compare_vpi_osm:
+        comparison_rows = []
+        for region in regions:
+            vpi_score = vpi_scores_by_region.get(region.id, 0.0)
+            osm_score = osm_scores_by_region.get(region.id, 0.0)
+            if args.exclude_zero_comparisons and (vpi_score == 0.0 or osm_score == 0.0):
+                continue
+            delta = osm_score - vpi_score
+            comparison_rows.append(
+                (region.id, region.city, region.country, vpi_score, osm_score, delta, abs(delta)))
+
+        comparison_rows = sorted(
+            comparison_rows, key=lambda row: row[6], reverse=True)
+        comparison_path = Path(f"./data/scores_compare_vpi_osm{suffix}.csv")
+        with open(comparison_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "region_id",
+                "city",
+                "country",
+                "image_count",
+                "osm_feature_count",
+                "vpi_score",
+                "osm_score",
+                "osm_minus_vpi",
+                "absolute_difference",
+            ])
+            for region_id, city, country, vpi_score, osm_score, delta, absolute_delta in comparison_rows:
+                writer.writerow([
+                    region_id,
+                    city,
+                    country,
+                    image_count_by_region.get(region_id, 0),
+                    osm_feature_count_by_region.get(region_id, 0),
+                    vpi_score,
+                    osm_score,
+                    delta,
+                    absolute_delta,
+                ])
+
+        differing_rows = [row for row in comparison_rows if row[6] > 0.0]
+        if differing_rows:
+            logger.info("Largest VPI vs OSM score differences:")
+            for region_id, city, country, vpi_score, osm_score, delta, absolute_delta in differing_rows[:10]:
+                logger.info(
+                    f"region_id={region_id}, city={city}, country={country}, vpi_score={vpi_score:.6f}, osm_score={osm_score:.6f}, osm_minus_vpi={delta:.6f}, absolute_difference={absolute_delta:.6f}")
+        else:
+            logger.info("No VPI vs OSM score differences found.")
+        raise SystemExit(0)
+
+    scored_rows = []
+    for region in regions:
+        score = scores_by_region.get(region.id, 0.0)
+        if args.update_db:
+            region.score = score
+        scored_rows.append((region.id, region.city, region.country, score))
+
+    if args.update_db:
+        db.session.commit()
+
     scores_path = Path(f"./data/scores_{args.method}{suffix}.csv")
     scored_rows = sorted(scored_rows, key=lambda row: row[3], reverse=True)
     with open(scores_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         for region_id, city, country, score in scored_rows:
             image_count = image_count_by_region.get(region_id, 0)
-            if args.method == "vpi_osm":
+            if args.method in {"osm", "vpi_osm"}:
                 osm_feature_count = osm_feature_count_by_region.get(
                     region_id, 0)
                 writer.writerow([region_id, city, country,
@@ -140,7 +218,7 @@ if __name__ == "__main__":
         logger.info("Highest positive scores:")
         for region_id, city, country, score in highest:
             image_count = image_count_by_region.get(region_id, 0)
-            if args.method == "vpi_osm":
+            if args.method in {"osm", "vpi_osm"}:
                 osm_feature_count = osm_feature_count_by_region.get(
                     region_id, 0)
                 logger.info(
@@ -151,7 +229,7 @@ if __name__ == "__main__":
         logger.info("Lowest positive scores:")
         for region_id, city, country, score in lowest:
             image_count = image_count_by_region.get(region_id, 0)
-            if args.method == "vpi_osm":
+            if args.method in {"osm", "vpi_osm"}:
                 osm_feature_count = osm_feature_count_by_region.get(
                     region_id, 0)
                 logger.info(

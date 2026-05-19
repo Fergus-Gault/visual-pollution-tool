@@ -17,6 +17,9 @@ class Scorer:
             scores = self.score_regions(
                 [region_id], apply_image_threshold=True)
             return scores.get(region_id, 0.0)
+        elif method == "osm":
+            scores = self.score_regions_with_osm_only([region_id])
+            return scores.get(region_id, 0.0)
         elif method == "vpi_osm":
             scores = self.score_regions_with_osm(
                 [region_id], apply_image_threshold=True)
@@ -81,6 +84,29 @@ class Scorer:
             final_scores[region_id] = score if math.isfinite(score) else 0.0
 
         return final_scores
+
+    def score_regions_with_osm_only(self, region_ids=None):
+        if not self.osm_severity_scores:
+            if region_ids is None:
+                return {}
+            return {region_id: 0.0 for region_id in region_ids}
+
+        region_id_filter = self._normalize_region_ids(region_ids)
+        osm_total_by_region = self._fetch_total_osm_features_by_region(
+            region_id_filter)
+        osm_type_counts = self._fetch_osm_type_counts_by_region(
+            region_id_filter)
+        target_region_ids = self._target_osm_region_ids(
+            region_id_filter, osm_total_by_region, osm_type_counts)
+
+        scores = {}
+        for region_id in target_region_ids:
+            if osm_total_by_region.get(region_id, 0) < ScoreConfig.FEATURES_PER_REGION_THRESHOLD:
+                scores[region_id] = 0.0
+                continue
+            scores[region_id] = self._compute_osm_score_for_region(
+                region_id, osm_total_by_region, osm_type_counts)
+        return scores
 
     def _normalize_region_ids(self, region_ids):
         if region_ids is None:
@@ -151,6 +177,11 @@ class Scorer:
         if region_id_filter is not None:
             return region_id_filter
         return set(image_count_by_region.keys()) | set(total_by_region.keys()) | set(label_counts.keys())
+
+    def _target_osm_region_ids(self, region_id_filter, total_by_region, type_counts):
+        if region_id_filter is not None:
+            return region_id_filter
+        return set(total_by_region.keys()) | set(type_counts.keys())
 
     def _build_scores(self, target_region_ids, image_count_by_region, total_by_region, label_counts, apply_image_threshold):
         scores = {}

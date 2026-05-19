@@ -22,6 +22,10 @@ def parse_args():
     parser.add_argument("--subregions", "-sr", type=int, default=1000)
     parser.add_argument("--region-mode", choices=["land", "uniform"], default="land",
                         help="Use land-aware subdivision or a uniform full-bbox grid.")
+    parser.add_argument("--min-land-fraction", type=float, default=0.01,
+                        help="In land mode, skip grid cells where less than this fraction overlaps the country shape.")
+    parser.add_argument("--land-filter", choices=["center", "overlap"], default="center",
+                        help="In land mode, use fast centre-point filtering or slower area-overlap filtering.")
     parser.add_argument("--image-sources", "-is", default="mapillary",
                         help="Comma-separated image sources: mapillary, kartaview, or both.")
     parser.add_argument("--collect-only", "-co", action="store_true")
@@ -56,6 +60,9 @@ def main():
         subregions = RegionManager.get_land_aware_subregions(
             gdf,
             args.subregions,
+            min_land_fraction=args.min_land_fraction,
+            country=args.country,
+            land_filter=args.land_filter,
         )
 
     logger.info(

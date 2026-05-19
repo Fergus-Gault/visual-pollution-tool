@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from geopy.geocoders import Nominatim
 from shapely.geometry import Point, box
+from shapely.ops import unary_union
 import osmnx as ox
 
 if TYPE_CHECKING:
@@ -88,15 +89,29 @@ class RegionManager:
         return subregions[:n_total]
 
     @staticmethod
-    def get_land_aware_subregions(gdf, num_subregions):
+    def get_land_aware_subregions(
+        gdf,
+        num_subregions,
+        min_land_fraction=0.01,
+        country=None,
+        land_filter="center",
+    ):
         from src.api.models import BoundingBox
+        from shapely.prepared import prep
 
         n_total = max(1, int(num_subregions))
+        min_land_fraction = max(0.0, min(float(min_land_fraction), 1.0))
+        land_filter = (land_filter or "center").strip().lower()
         shape_geometry = RegionManager.get_shape_geometry(gdf)
         country_bbox = RegionManager.bbox_from_shape(gdf)
 
         if shape_geometry is None or shape_geometry.is_empty:
             return [country_bbox]
+
+        land_geometry = RegionManager.get_country_land_geometry(gdf, country)
+        if land_geometry is None or land_geometry.is_empty:
+            land_geometry = shape_geometry
+        prepared_land_geometry = prep(land_geometry)
 
         def candidate_dims(target_cells):
             lng_span = max(country_bbox.max_lng - country_bbox.min_lng, 1e-12)
@@ -105,6 +120,29 @@ class RegionManager:
             rows = max(1, int(round(math.sqrt(target_cells / max(aspect, 1e-12)))))
             cols = max(1, int(math.ceil(target_cells / rows)))
             return rows, cols
+
+        def is_land_cell(bbox):
+            if land_filter == "center":
+                centre_lng, centre_lat = RegionManager.get_region_mid(bbox)
+                return prepared_land_geometry.intersects(Point(centre_lng, centre_lat))
+
+            cell_geometry = box(
+                bbox.min_lng,
+                bbox.min_lat,
+                bbox.max_lng,
+                bbox.max_lat,
+            )
+            if not prepared_land_geometry.intersects(cell_geometry):
+                return False
+            if min_land_fraction <= 0:
+                return True
+
+            cell_area = cell_geometry.area
+            if cell_area <= 0:
+                return False
+
+            overlap_area = land_geometry.intersection(cell_geometry).area
+            return (overlap_area / cell_area) >= min_land_fraction
 
         def land_cells_for_dims(rows, cols):
             lng_edges = np.linspace(country_bbox.min_lng, country_bbox.max_lng, cols + 1)
@@ -119,9 +157,7 @@ class RegionManager:
                         float(lng_edges[col + 1]),
                         float(lat_edges[row + 1]),
                     )
-                    if shape_geometry.intersects(
-                        box(bbox.min_lng, bbox.min_lat, bbox.max_lng, bbox.max_lat)
-                    ):
+                    if is_land_cell(bbox):
                         cells.append(bbox)
             return cells
 
@@ -162,7 +198,9 @@ class RegionManager:
 
         if len(subregions) != n_total:
             logger.warning(
-                f"Generated {len(subregions)} same-size land regions for requested {n_total}."
+                f"Generated {len(subregions)} same-size land regions for requested "
+                f"{n_total} with land_filter={land_filter} and "
+                f"min_land_fraction={min_land_fraction}."
             )
         return subregions
 
@@ -215,6 +253,53 @@ class RegionManager:
         elif gdf.crs.to_epsg() != 4326:
             gdf = gdf.to_crs(epsg=4326)
         return gdf.geometry.unary_union
+
+    @staticmethod
+    def get_country_land_geometry(gdf, country=None):
+        shape_geometry = RegionManager.get_shape_geometry(gdf)
+        if shape_geometry is None or shape_geometry.is_empty:
+            return None
+
+        country_key = (country or "").strip().lower()
+        uk_names = {
+            "uk",
+            "u.k.",
+            "great britain",
+            "united kingdom",
+            "united kingdom of great britain and northern ireland",
+        }
+        if country_key not in uk_names:
+            return shape_geometry
+
+        # OSM country boundaries can include maritime waters. For the UK preview,
+        # build a mask from landmass/island geometries and intersect it back with
+        # the UK boundary so offshore administrative water is not treated as land.
+        land_queries = [
+            "Great Britain",
+            "Island of Ireland",
+            "Ireland island",
+            "Isle of Wight",
+            "Anglesey",
+            "Isles of Scilly",
+            "Mainland, Orkney",
+            "Mainland, Shetland",
+        ]
+        land_parts = []
+        for query in land_queries:
+            land_gdf = RegionManager.get_shape_file(query)
+            land_geometry = RegionManager.get_shape_geometry(land_gdf)
+            if land_geometry is not None and not land_geometry.is_empty:
+                clipped = land_geometry.intersection(shape_geometry)
+                if not clipped.is_empty:
+                    land_parts.append(clipped)
+
+        if not land_parts:
+            logger.warning(
+                "Could not resolve UK landmass geometry; falling back to the country boundary."
+            )
+            return shape_geometry
+
+        return unary_union(land_parts)
 
     @staticmethod
     def point_in_city(lng, lat, gdf):

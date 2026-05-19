@@ -194,6 +194,8 @@ Useful options:
 
 - `--subregions` / `-sr`: number of connected grid cells to create, defaults to `1000`
 - `--region-mode`: choose `land` or `uniform`, defaults to `land`
+- `--min-land-fraction`: in `land` mode, skip cells below this land overlap fraction, defaults to `0.01`
+- `--land-filter`: choose `center` for fast centre-point filtering or `overlap` for slower area filtering, defaults to `center`
 - `--image-sources` / `-is`: choose `mapillary`, `kartaview`, or `both`, defaults to `mapillary`
 - `--collect-only`: collect imagery and metadata but skip inference
 - `--override`: recreate any existing matching subregions
@@ -212,6 +214,7 @@ Previews the exact connected subregions that would be created for a country, wit
 ```bash
 python show_country_regions.py Japan
 python show_country_regions.py "United Kingdom" --subregions 1000
+python show_country_regions.py "United Kingdom" --subregions 10000 --land-filter center
 python show_country_regions.py Indonesia --region-mode uniform
 ```
 
@@ -293,14 +296,31 @@ Use this to evaluate a trained checkpoint on `test`, `val`, or another supported
 
 #### `score_regions.py`
 
-Computes region-level scores from detections, with an optional OSM-aware method.
+Computes region-level scores from detections, OSM features, or a weighted combination of both.
 
 ```bash
 python score_regions.py --method vpi
+python score_regions.py --method osm
 python score_regions.py --method vpi_osm --city Edinburgh --country UK
+python score_regions.py --method osm --update-db
+python score_regions.py --compare-vpi-osm
+python score_regions.py --compare-vpi-osm --exclude-zero-comparisons
 ```
 
-Use this after inference when you want comparable regional scores for analysis.
+By default the script writes a CSV export only. Add `--update-db` when you also want to persist the computed values to `region.score` in PostgreSQL.
+
+Use `vpi` after inference, `osm` when scoring only from collected OSM features, and `vpi_osm` when you want the weighted combined score.
+
+Use `--compare-vpi-osm` to write `./data/scores_compare_vpi_osm.csv`, sorted by the largest absolute difference between the VPI-only and OSM-only scores. The export includes both scores plus `osm_minus_vpi` and `absolute_difference`. Add `--exclude-zero-comparisons` when you only want rows where both methods produced a non-zero score.
+
+To map the absolute difference between VPI-only and OSM-only scores:
+
+```bash
+python scripts/world_score_difference.py
+python scripts/world_score_difference.py --exclude-zero-scores
+```
+
+The map writes to `./maps/world_score_differences.html` and `./maps/world_score_differences.png`, with larger red circles for larger differences and smaller green circles for smaller differences.
 
 ## Typical Workflows
 
@@ -335,7 +355,7 @@ python download_data.py --download-path ./exports --shard-size 10000
 ### Score regions after inference
 
 ```bash
-python score_regions.py --method vpi
+python score_regions.py --method vpi --update-db
 ```
 
 ## Outputs at a Glance
