@@ -43,17 +43,83 @@ class OSMConfig:
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.private.coffee/api/interpreter"
     ]
+    HEADERS = {
+        "Accept-Charset": "utf-8;q=0.7,*;q=0.7",
+        "User-Agent": "dissertation-osm-collector/1.0"
+    }
     BINS = 'node["amenity"="waste_basket"]'
     POWER_NODE = 'node["power"]'
     POWER_WAY = 'way["power"]'
-    BILLBOARD_NODE = 'node["advertising"="billboard"]'
-    BILLBOARD_WAY = 'way["advertising"="billboard"]'
-    BARRIERS = 'way["barrier"]'
-    TRAFFIC_SIGNS = 'node["highway"="traffic_signals"]'
-    OSM_QUERIES = [BINS, POWER_NODE, POWER_WAY,
-                   BILLBOARD_NODE, BILLBOARD_WAY, BARRIERS, TRAFFIC_SIGNS]
+    ADVERTISING_NODE = 'node["advertising"]'
+    ADVERTISING_WAY = 'way["advertising"]'
+    ADVERTISING_RELATION = 'relation["advertising"]'
+    ADVERTISING_ONLY_QUERIES = [
+        ADVERTISING_NODE,
+        ADVERTISING_WAY,
+        ADVERTISING_RELATION,
+    ]
+    BARRIER_BOLLARD_NODE = 'node["barrier"="bollard"]'
+    BARRIER_BOLLARD_WAY = 'way["barrier"="bollard"]'
+    BARRIER_WEDGE_NODE = 'node["barrier"="wedge"]'
+    BARRIER_WEDGE_WAY = 'way["barrier"="wedge"]'
+    BARRIER_BOARD_NODE = 'node["barrier"="barrier_board"]'
+    BARRIER_BOARD_WAY = 'way["barrier"="barrier_board"]'
+    BARRIER_JERSEY_NODE = 'node["barrier"="jersey_barrier"]'
+    BARRIER_JERSEY_WAY = 'way["barrier"="jersey_barrier"]'
+    BARRIER_ONLY_QUERIES = [
+        BARRIER_BOLLARD_NODE,
+        BARRIER_BOLLARD_WAY,
+        BARRIER_WEDGE_NODE,
+        BARRIER_WEDGE_WAY,
+        BARRIER_BOARD_NODE,
+        BARRIER_BOARD_WAY,
+        BARRIER_JERSEY_NODE,
+        BARRIER_JERSEY_WAY,
+    ]
+    ROAD_SIGN_GIVE_WAY = 'node["highway"="give_way"]'
+    ROAD_SIGN_STOP = 'node["highway"="stop"]'
+    ROAD_SIGN_MILESTONE = 'node["highway"="milestone"]'
+    ROAD_SIGN_MOTORWAY_JUNCTION = 'node["highway"="motorway_junction"]'
+    ROAD_SIGN_SPEED_DISPLAY = 'node["highway"="speed_display"]'
+    ROAD_SIGN_ONLY_QUERIES = [
+        ROAD_SIGN_GIVE_WAY,
+        ROAD_SIGN_STOP,
+        ROAD_SIGN_MILESTONE,
+        ROAD_SIGN_MOTORWAY_JUNCTION,
+        ROAD_SIGN_SPEED_DISPLAY,
+    ]
+    TARGETED_RESCAN_QUERIES = (
+        ADVERTISING_ONLY_QUERIES
+        + BARRIER_ONLY_QUERIES
+        + ROAD_SIGN_ONLY_QUERIES
+    )
+    OSM_QUERIES = [
+        BINS,
+        POWER_NODE,
+        POWER_WAY,
+        ADVERTISING_NODE,
+        ADVERTISING_WAY,
+        ADVERTISING_RELATION,
+        BARRIER_BOLLARD_NODE,
+        BARRIER_BOLLARD_WAY,
+        BARRIER_WEDGE_NODE,
+        BARRIER_WEDGE_WAY,
+        BARRIER_BOARD_NODE,
+        BARRIER_BOARD_WAY,
+        BARRIER_JERSEY_NODE,
+        BARRIER_JERSEY_WAY,
+        ROAD_SIGN_GIVE_WAY,
+        ROAD_SIGN_STOP,
+        ROAD_SIGN_MILESTONE,
+        ROAD_SIGN_MOTORWAY_JUNCTION,
+        ROAD_SIGN_SPEED_DISPLAY,
+    ]
     RETRIES = 3
-    OSM_SUBREGIONS = 60
+    OSM_SUBREGIONS = 1
+    OSM_MAX_WORKERS = 6
+    CONNECT_TIMEOUT = 20
+    QUERY_TIMEOUT = 30
+    CONNECT_TEST_QUERY = "node(55.9528,-3.1898,55.9538,-3.1878);out body 1;"
 
 
 class DatabaseConfig:
@@ -87,6 +153,7 @@ class PipelineConfig:
     REGION_WORKERS = 1
     MAPILLARY_RATE_LIMIT = 10000
     KARTAVIEW_RATE_LIMIT = 1000
+    OSM_RATE_LIMIT = 60
 
 
 class MapConfig:
@@ -246,9 +313,12 @@ class ScoreConfig:
     }
     OSM_SEVERITY_SCORES = {
         'billboard': 0.9,
+        'advertising': 0.9,
         'power': 0.3,
         'bin': 0.2,
         'barrier': 0.1,
+        'shop_sign': 0.9,
+        'mobile_advertisement': 0.9,
         'traffic_sign': 0.0,
         'traffic_light': 0.0,
         'street_light': 0.0,

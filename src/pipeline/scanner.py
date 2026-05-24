@@ -6,7 +6,7 @@ from dateutil.parser import ParserError
 from src.database import DatabaseManager, Image, OSMFeature
 from src.api import KartaviewAPI, MapillaryAPI, OSMApi, APIManager, ImageStoreMetadata, BoundingBox, OSMFeatureClassifier
 from src.utils import setup_logger, RegionManager, Dimensioner
-from src.config import PipelineConfig, Config
+from src.config import PipelineConfig, Config, OSMConfig
 
 logger = setup_logger(__name__)
 
@@ -88,32 +88,151 @@ class Scanner:
             return
         self._store_osm_data(region, data)
 
+    def rescan_osm_region(self, region):
+        region_bbox = BoundingBox(
+            region.min_lng,
+            region.min_lat,
+            region.max_lng,
+            region.max_lat,
+        )
+        if self.osm.api is None:
+            logger.warning("OSM API is unavailable. Skipping OSM rescan.")
+            return False
+        data = self.osm.fetch_region(region_bbox)
+        if data is None:
+            logger.warning(f"OSM did not return any data for region {region.id}.")
+            return False
+        osm_success = self._store_osm_data(region, data)
+        self.db.update_osm_fetched(region.id, osm_success or bool(region.osm_fetched))
+        return osm_success
+
+    def rescan_targeted_features_region(self, region):
+        region_bbox = BoundingBox(
+            region.min_lng,
+            region.min_lat,
+            region.max_lng,
+            region.max_lat,
+        )
+        if self.osm.api is None:
+            logger.warning("OSM API is unavailable. Skipping targeted OSM rescan.")
+            return False
+        data = self.osm.fetch_region_for_queries(
+            region_bbox,
+            OSMConfig.TARGETED_RESCAN_QUERIES,
+        )
+        if data is None:
+            logger.warning(
+                f"OSM did not return any targeted OSM data for region {region.id}."
+            )
+            return False
+
+        filtered_features = []
+        for feature in data.get('features', []):
+            properties = feature.get('properties', {})
+            osm_type = OSMFeatureClassifier.determine_osm_type(properties)
+            if 'advertising' in properties and osm_type != 'billboard':
+                filtered_features.append(feature)
+                continue
+            if 'barrier' in properties and osm_type == 'barrier':
+                filtered_features.append(feature)
+                continue
+            if ('highway' in properties or 'traffic_sign' in properties) and osm_type == 'road_sign':
+                filtered_features.append(feature)
+                continue
+
+        if not filtered_features:
+            return False
+
+        osm_success = self._store_osm_data(region, {'features': filtered_features})
+        self.db.update_osm_fetched(region.id, osm_success or bool(region.osm_fetched))
+        return osm_success
+
+    def _extract_osm_point(self, geometry):
+        geom_type = geometry.get('type')
+        coordinates = geometry.get('coordinates', [])
+
+        if geom_type == 'Point' and len(coordinates) >= 2:
+            return coordinates[0], coordinates[1]
+
+        if geom_type == 'MultiPoint' and coordinates:
+            return self._average_points(coordinates)
+
+        if geom_type == 'LineString' and coordinates:
+            return self._average_points(coordinates)
+
+        if geom_type == 'MultiLineString' and coordinates:
+            points = [point for line in coordinates for point in line]
+            return self._average_points(points)
+
+        if geom_type == 'Polygon' and coordinates:
+            outer_ring = coordinates[0] if coordinates else []
+            return self._average_points(outer_ring)
+
+        if geom_type == 'MultiPolygon' and coordinates:
+            points = []
+            for polygon in coordinates:
+                if polygon:
+                    points.extend(polygon[0])
+            return self._average_points(points)
+
+        return (None, None)
+
+    def _average_points(self, points):
+        valid_points = []
+        for point in points:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                continue
+            try:
+                lng = float(point[0])
+                lat = float(point[1])
+            except (TypeError, ValueError):
+                continue
+            valid_points.append((lng, lat))
+
+        if not valid_points:
+            return (None, None)
+
+        lng = sum(point[0] for point in valid_points) / len(valid_points)
+        lat = sum(point[1] for point in valid_points) / len(valid_points)
+        return (lng, lat)
+
     def _store_osm_data(self, region, data):
         to_add = []
         stored_osm_count = 0
+        existing_keys = self.db.get_osm_feature_keys_by_region(region.id)
+        pending_keys = set()
         for vp in data['features']:
             try:
                 geometry = vp.get('geometry', {})
-                geom_type = geometry.get('type')
-                coordinates = geometry.get('coordinates', [])
+                lng, lat = self._extract_osm_point(geometry)
+                if lng is None or lat is None:
+                    continue
 
-                if geom_type == 'Point' and len(coordinates) >= 2:
-                    lng, lat = coordinates[0], coordinates[1]
-                    feature_name = self.osm.extract_name(vp)
+                feature_name = self.osm.extract_name(vp)
+                properties = vp.get('properties', {})
+                osm_id = str(vp.get('id', str(properties)))
+                osm_type = OSMFeatureClassifier.determine_osm_type(properties)
+                feature_key = (osm_id, osm_type)
 
-                    properties = vp.get('properties', {})
-                    osm_id = vp.get('id', str(properties))
-                    osm_type = OSMFeatureClassifier.determine_osm_type(
-                        properties)
-                    to_add.append(OSMFeature(region_id=region.id, osm_id=str(
-                        osm_id), osm_type=osm_type, lng=lng, lat=lat, name=feature_name))
+                if feature_key in existing_keys or feature_key in pending_keys:
+                    continue
 
-                    stored_osm_count += 1
+                pending_keys.add(feature_key)
+                to_add.append(OSMFeature(
+                    region_id=region.id,
+                    osm_id=osm_id,
+                    osm_type=osm_type,
+                    lng=lng,
+                    lat=lat,
+                    name=feature_name,
+                ))
+                stored_osm_count += 1
 
             except (KeyError, IndexError, TypeError) as e:
                 logger.warning(
                     f"Failed to extract coordinates from OSM feature: {e}")
-        self.db.add_many_osm_features(to_add)
+        if to_add:
+            self.db.add_many_osm_features(to_add)
         logger.info(f"Stored {stored_osm_count} OSM features.")
         return stored_osm_count > 0
 

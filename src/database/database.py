@@ -278,8 +278,33 @@ class DatabaseManager:
     def add_many_osm_features(self, to_add):
         self.osm_features.add_all(to_add)
 
+    def get_osm_feature_keys_by_region(self, region_id):
+        rows = (
+            self.session.query(OSMFeature.osm_id, OSMFeature.osm_type)
+            .filter(OSMFeature.region_id == region_id)
+            .all()
+        )
+        return {(str(osm_id), osm_type) for osm_id, osm_type in rows}
+
+    def count_osm_features_by_region(self, region_id):
+        return (
+            self.session.query(func.count(OSMFeature.id))
+            .filter(OSMFeature.region_id == region_id)
+            .scalar()
+            or 0
+        )
+
+    def delete_osm_features_by_types(self, osm_types):
+        if not osm_types:
+            return 0
+        deleted = self.session.execute(
+            delete(OSMFeature).where(OSMFeature.osm_type.in_(osm_types))
+        )
+        self.session.commit()
+        return deleted.rowcount or 0
+
     def get_osm_features_by_region(self, region_id, _type=None):
         query = self.osm_features.get_by_region(region_id)
         if _type is not None:
-            query = query.filter_by(type=_type)
+            query = query.filter_by(osm_type=_type)
         return query.all()

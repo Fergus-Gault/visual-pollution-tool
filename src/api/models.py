@@ -155,10 +155,12 @@ class ImageRequest:
             "page": 1
         }
 
-    def to_osm_params(self):
+    def to_osm_params(self, queries=None):
         query_parts = []
         bbox = f"{self.bbox.min_lat},{self.bbox.min_lng},{self.bbox.max_lat}, {self.bbox.max_lng}"
-        for query in OSMConfig.OSM_QUERIES:
+        if queries is None:
+            queries = OSMConfig.OSM_QUERIES
+        for query in queries:
             query_parts.append(f"{query}[!'location']({bbox});")
             query_parts.append(
                 f"{query}[location=outdoor]({bbox});")

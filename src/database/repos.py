@@ -190,7 +190,7 @@ class OSMFeatureRepo(BaseRepo[OSMFeature]):
         super().__init__(session, OSMFeature)
 
     def get_by_region(self, region_id):
-        return self.session.query(OSMFeature).filter(region_id == region_id)
+        return self.session.query(OSMFeature).filter(OSMFeature.region_id == region_id)
 
     def add_many_osm(self, entities: List[dict]):
         stmt = postgresql_insert(OSMFeature.__table__).values(entities)
