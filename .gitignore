@@ -12,3 +12,5 @@ runs/
 cache/
 wandb/
 data/scores*.csv
+data/*.csv
+*.csv
