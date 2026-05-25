@@ -5,7 +5,7 @@ from branca.colormap import LinearColormap
 from src.api import BoundingBox
 from src.config import MapConfig
 from src.database import DatabaseManager
-from src.pipeline import Scorer
+from src.pipeline.score import Scorer
 from src.utils import RegionManager
 
 

@@ -4,7 +4,7 @@ import csv
 from src.database import DatabaseManager
 from src.model import YoloModel
 from src.utils import setup_logger, RegionManager
-from src.mapping import Mapper
+from src.mapping.map import Mapper
 from src.api import build_image_apis
 
 from .score import Scorer
