@@ -1,4 +1,5 @@
 import argparse
+import math
 import re
 import sys
 from pathlib import Path
@@ -29,6 +30,7 @@ SOURCE_CONFIG = {
         "total_column": "total_osm_features",
         "folder_name": "osm_category_rates_by_income_group",
         "csv_name": "osm_category_rates_by_income_group.csv",
+        "combined_name": "osm_category_rates_by_income_group.png",
         "colour": "#1f77b4",
         "median_colour": "#b22222",
     },
@@ -40,6 +42,7 @@ SOURCE_CONFIG = {
         "total_column": "total_detections",
         "folder_name": "detection_label_rates_by_income_group",
         "csv_name": "detection_label_rates_by_income_group.csv",
+        "combined_name": "detection_label_rates_by_income_group.png",
         "colour": "#2a9d8f",
         "median_colour": "#a44a3f",
     },
@@ -94,6 +97,29 @@ def parse_args():
         nargs="+",
         default=None,
         help="Optional list of detection labels to include.",
+    )
+    parser.add_argument(
+        "--exclude-osm-categories",
+        nargs="+",
+        default=None,
+        help="Optional list of OSM categories to exclude.",
+    )
+    parser.add_argument(
+        "--exclude-detection-labels",
+        nargs="+",
+        default=None,
+        help="Optional list of detection labels to exclude.",
+    )
+    parser.add_argument(
+        "--subplot-columns",
+        type=int,
+        default=3,
+        help="Number of columns to use in the combined subplot figures.",
+    )
+    parser.add_argument(
+        "--save-individual-plots",
+        action="store_true",
+        help="Also save one PNG per OSM category and detection label.",
     )
     return parser.parse_args()
 
@@ -272,7 +298,14 @@ def filter_categories(data, category_column, requested_categories):
     return data[data[category_column].isin(requested)].copy()
 
 
-def plot_single_category(subset, category, category_column, output_path, title, colour, median_colour):
+def exclude_categories(data, category_column, excluded_categories):
+    if excluded_categories is None:
+        return data
+    excluded = {category.strip() for category in excluded_categories if category.strip()}
+    return data[~data[category_column].isin(excluded)].copy()
+
+
+def draw_category_panel(ax, subset, category, colour, median_colour, show_xlabel=True):
     income_order = order_income_groups(subset["Income group"].unique())
     x_lookup = {label: index for index, label in enumerate(income_order)}
     rng = np.random.default_rng(42)
@@ -281,7 +314,6 @@ def plot_single_category(subset, category, category_column, output_path, title, 
     points["x"] = points["Income group"].map(x_lookup).astype(float)
     points["x"] = points["x"] + rng.uniform(-0.16, 0.16, size=len(points))
 
-    fig, ax = plt.subplots(figsize=(7.2, 5.2), dpi=180)
     ax.scatter(
         points["x"],
         points["rate"],
@@ -307,8 +339,8 @@ def plot_single_category(subset, category, category_column, output_path, title, 
             markersize=4,
         )
 
-    ax.set_title(f"{title}\n{category}")
-    ax.set_xlabel("Economic classification")
+    ax.set_title(category)
+    ax.set_xlabel("Economic classification" if show_xlabel else "")
     ax.set_ylabel("Rate within region")
     ax.set_xticks(range(len(income_order)))
     ax.set_xticklabels(income_order, rotation=25, ha="right")
@@ -332,13 +364,62 @@ def plot_single_category(subset, category, category_column, output_path, title, 
         color="#374151",
     )
 
+
+def plot_single_category(subset, category, output_path, title, colour, median_colour):
+    fig, ax = plt.subplots(figsize=(7.2, 5.2), dpi=180)
+    draw_category_panel(ax, subset, category, colour, median_colour)
+    fig.suptitle(title, y=0.995)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path)
     plt.close(fig)
 
 
-def export_source_plots(data, source_key, output_root, output_csv_root):
+def plot_combined_categories(data, source_key, output_path, subplot_columns):
+    config = SOURCE_CONFIG[source_key]
+    category_column = config["category_column"]
+    categories = sorted(data[category_column].unique())
+    if not categories:
+        return 0
+
+    columns = max(1, int(subplot_columns))
+    rows = math.ceil(len(categories) / columns)
+    fig, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(5.1 * columns, 3.8 * rows),
+        dpi=180,
+        squeeze=False,
+    )
+
+    for index, category in enumerate(categories):
+        row = index // columns
+        column = index % columns
+        ax = axes[row][column]
+        subset = data[data[category_column] == category].copy()
+        draw_category_panel(
+            ax,
+            subset,
+            category,
+            config["colour"],
+            config["median_colour"],
+            show_xlabel=(row == rows - 1),
+        )
+
+    for index in range(len(categories), rows * columns):
+        row = index // columns
+        column = index % columns
+        axes[row][column].set_visible(False)
+
+    fig.suptitle(config["title"], y=0.995)
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    return len(categories)
+
+
+def export_source_plots(data, source_key, output_root, output_csv_root, subplot_columns, save_individual_plots):
     config = SOURCE_CONFIG[source_key]
     category_column = config["category_column"]
 
@@ -346,22 +427,29 @@ def export_source_plots(data, source_key, output_root, output_csv_root):
         print(f"No matched data available for {source_key}.")
         return
 
-    output_dir = output_root / config["folder_name"]
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     categories = sorted(data[category_column].unique())
-    for category in categories:
-        subset = data[data[category_column] == category].copy()
-        output_path = output_dir / f"{slugify(category)}.png"
-        plot_single_category(
-            subset,
-            category,
-            category_column,
-            output_path,
-            config["title"],
-            config["colour"],
-            config["median_colour"],
-        )
+    combined_path = output_root / config["combined_name"]
+    plot_count = plot_combined_categories(
+        data,
+        source_key,
+        combined_path,
+        subplot_columns,
+    )
+
+    if save_individual_plots:
+        output_dir = output_root / config["folder_name"]
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for category in categories:
+            subset = data[data[category_column] == category].copy()
+            output_path = output_dir / f"{slugify(category)}.png"
+            plot_single_category(
+                subset,
+                category,
+                output_path,
+                config["title"],
+                config["colour"],
+                config["median_colour"],
+            )
 
     csv_path = output_csv_root / config["csv_name"]
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -371,7 +459,9 @@ def export_source_plots(data, source_key, output_root, output_csv_root):
     ).reset_index(drop=True)
     ordered.to_csv(csv_path, index=False)
 
-    print(f"Saved {len(categories)} {source_key} plot(s) to {output_dir}")
+    print(f"Saved {plot_count} {source_key} subplot(s) to {combined_path}")
+    if save_individual_plots:
+        print(f"Saved {len(categories)} individual {source_key} plot(s) to {output_dir}")
     print(f"Saved {source_key} per-region rates to {csv_path}")
 
 
@@ -387,6 +477,11 @@ def main():
         SOURCE_CONFIG["osm"]["category_column"],
         args.osm_categories,
     )
+    osm_rates = exclude_categories(
+        osm_rates,
+        SOURCE_CONFIG["osm"]["category_column"],
+        args.exclude_osm_categories,
+    )
 
     detection_rates = load_detection_rates(db, args.min_detections)
     detection_rates = merge_with_classifications(detection_rates, classifications)
@@ -395,18 +490,27 @@ def main():
         SOURCE_CONFIG["detections"]["category_column"],
         args.detection_labels,
     )
+    detection_rates = exclude_categories(
+        detection_rates,
+        SOURCE_CONFIG["detections"]["category_column"],
+        args.exclude_detection_labels,
+    )
 
     export_source_plots(
         osm_rates,
         "osm",
         args.output_root,
         args.output_csv_root,
+        args.subplot_columns,
+        args.save_individual_plots,
     )
     export_source_plots(
         detection_rates,
         "detections",
         args.output_root,
         args.output_csv_root,
+        args.subplot_columns,
+        args.save_individual_plots,
     )
 
 
