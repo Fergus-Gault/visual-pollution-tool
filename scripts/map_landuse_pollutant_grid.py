@@ -383,7 +383,10 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                 (0, 0, None),
             )
             density_text = "NA" if pd.isna(density) else f"{density:.2f}"
-            stat_lines = [f"Detections: {detection_count}", f"Density: {density_text}"]
+            stat_lines = [
+                f"Detections: {detection_count}",
+                f"Detection density: {density_text}/image",
+            ]
             ax.text(
                 0.02,
                 0.98,
@@ -447,11 +450,11 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
         right=0.995,
         bottom=0.04,
         top=0.875,
-        wspace=0.035,
-        hspace=0.001,
+        wspace=0.0,
+        hspace=0.0,
     )
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, bbox_inches="tight", pad_inches=0.05)
+    fig.savefig(output_file, bbox_inches="tight", pad_inches=0.0)
     plt.close(fig)
 
 

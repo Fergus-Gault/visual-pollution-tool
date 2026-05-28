@@ -1,13 +1,22 @@
 import argparse
+import importlib.util
 import textwrap
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import geopandas as gpd
+import matplotlib
 import pandas as pd
+from matplotlib.patches import Patch
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 TOP_COLOR = "#c43c39"
 BOTTOM_COLOR = "#2b8a67"
+BOTH_COLOR = "#7d6370"
+BASE_WORLD_COLOR = "#efefeb"
+BASE_EDGE_COLOR = "#b7b7b0"
 LINE_COLOR = "#9a9a9a"
 TEXT_COLOR = "#252525"
 
@@ -67,6 +76,20 @@ def parse_args():
         default="gap",
         help="How to choose and order countries in the plots.",
     )
+    parser.add_argument(
+        "--country-map-output",
+        type=Path,
+        default=Path("maps/vpi_country_quantile_membership_map.png"),
+        help=(
+            "Output path for an optional world map showing countries that appear "
+            "in the selected top and bottom quantile groups."
+        ),
+    )
+    parser.add_argument(
+        "--skip-country-map",
+        action="store_true",
+        help="Skip generating the world country membership map.",
+    )
     return parser.parse_args()
 
 
@@ -122,6 +145,46 @@ def build_country_summary(data, min_tested_cities):
     return summary
 
 
+def build_country_membership_summary(data, min_tested_cities):
+    grouped = (
+        data.groupby(["country", "quantile_group"], as_index=False)
+        .agg(
+            tested_city_count=("tested_city_count", "max"),
+            selected_city_count=("city", "nunique"),
+        )
+    )
+    if grouped.empty:
+        return pd.DataFrame(
+            columns=[
+                "country",
+                "tested_city_count",
+                "top_count",
+                "bottom_count",
+                "membership",
+            ]
+        )
+
+    pivot = grouped.pivot(
+        index="country",
+        columns="quantile_group",
+        values="selected_city_count",
+    ).fillna(0)
+    counts = grouped.groupby("country", as_index=True).agg(
+        tested_city_count=("tested_city_count", "max"),
+    )
+    summary = counts.join(pivot, how="left").fillna(0).reset_index()
+    for column in ["top", "bottom"]:
+        if column not in summary.columns:
+            summary[column] = 0
+        summary[column] = pd.to_numeric(summary[column], errors="coerce").fillna(0).astype(int)
+
+    summary = summary[summary["tested_city_count"] >= min_tested_cities].copy()
+    summary = summary[(summary["top"] > 0) | (summary["bottom"] > 0)].copy()
+    summary["membership"] = summary.apply(country_membership_label, axis=1)
+    summary = summary.rename(columns={"top": "top_count", "bottom": "bottom_count"})
+    return summary
+
+
 def order_summary(summary, order_by, limit):
     if order_by == "tested_cities":
         sort_columns = ["tested_city_count", "gap", "top", "country"]
@@ -136,6 +199,132 @@ def order_summary(summary, order_by, limit):
 
 def wrap_label(value, width=24):
     return "\n".join(textwrap.wrap(str(value), width=width, break_long_words=False))
+
+
+def country_membership_label(row):
+    if int(row.get("top", 0)) > 0 and int(row.get("bottom", 0)) > 0:
+        return "both"
+    if int(row.get("top", 0)) > 0:
+        return "top"
+    return "bottom"
+
+
+def normalize_country_name(value):
+    return " ".join(str(value).strip().casefold().split())
+
+
+def country_aliases():
+    return {
+        normalize_country_name("United States"): "United States of America",
+        normalize_country_name("Burma"): "Myanmar",
+        normalize_country_name("Congo (Kinshasa)"): "Dem. Rep. Congo",
+        normalize_country_name("Korea, South"): "South Korea",
+        normalize_country_name("Côte d’Ivoire"): "Côte d'Ivoire",
+        normalize_country_name("CÃ´te dâ€™Ivoire"): "Côte d'Ivoire",
+    }
+
+
+def resolve_naturalearth_world_path():
+    spec = importlib.util.find_spec("pyogrio")
+    if spec is None or spec.origin is None:
+        return None
+
+    candidate = (
+        Path(spec.origin).resolve().parent
+        / "tests"
+        / "fixtures"
+        / "naturalearth_lowres"
+        / "naturalearth_lowres.shp"
+    )
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def load_world_boundaries():
+    world_path = resolve_naturalearth_world_path()
+    if world_path is None:
+        raise SystemExit(
+            "Could not find a local world boundary dataset for the country map."
+        )
+
+    world = gpd.read_file(world_path)
+    world = world[world.geometry.notna()].copy()
+    world = world[~world.geometry.is_empty].copy()
+    world["country_name_key"] = world["name"].map(normalize_country_name)
+    return world
+
+
+def blend_hex_colors(first, second):
+    first = first.lstrip("#")
+    second = second.lstrip("#")
+    return "#{:02x}{:02x}{:02x}".format(
+        *[
+            int(round((int(first[index:index + 2], 16) + int(second[index:index + 2], 16)) / 2))
+            for index in range(0, 6, 2)
+        ]
+    )
+
+
+def plot_country_membership_map(data, output_path, min_tested_cities):
+    membership = build_country_membership_summary(data, min_tested_cities)
+    if membership.empty:
+        raise SystemExit("No country rows available for the country membership map.")
+
+    world = load_world_boundaries()
+    alias_lookup = country_aliases()
+    membership = membership.copy()
+    membership["country_name_key"] = membership["country"].map(normalize_country_name)
+    membership["world_name_key"] = membership["country_name_key"].map(
+        lambda key: normalize_country_name(alias_lookup.get(key, key))
+    )
+
+    joined = world.merge(
+        membership,
+        left_on="country_name_key",
+        right_on="world_name_key",
+        how="left",
+    )
+
+    category_colors = {
+        "top": TOP_COLOR,
+        "bottom": BOTTOM_COLOR,
+        "both": BOTH_COLOR,
+    }
+    joined["plot_color"] = joined["membership"].map(category_colors).fillna(BASE_WORLD_COLOR)
+
+    missing = membership.loc[~membership["world_name_key"].isin(set(world["country_name_key"]))]
+    if not missing.empty:
+        missing_names = ", ".join(sorted(missing["country"].unique()))
+        print(f"Could not match these countries on the world map: {missing_names}")
+
+    fig, ax = plt.subplots(figsize=(16, 9))
+    joined.plot(
+        ax=ax,
+        color=joined["plot_color"],
+        edgecolor=BASE_EDGE_COLOR,
+        linewidth=0.45,
+    )
+
+    ax.set_title("Countries Represented in Selected Top and Bottom VPI Quantile Groups")
+    ax.set_axis_off()
+
+    legend_handles = [
+        Patch(facecolor=TOP_COLOR, edgecolor=BASE_EDGE_COLOR, label="Top group only"),
+        Patch(facecolor=BOTTOM_COLOR, edgecolor=BASE_EDGE_COLOR, label="Bottom group only"),
+        Patch(
+            facecolor=BOTH_COLOR,
+            edgecolor=BASE_EDGE_COLOR,
+            label="Appears in both",
+        ),
+        Patch(facecolor=BASE_WORLD_COLOR, edgecolor=BASE_EDGE_COLOR, label="Not selected"),
+    ]
+    ax.legend(handles=legend_handles, loc="lower left", frameon=False)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_country_gap(summary, output_path):
@@ -280,10 +469,18 @@ def main():
         args.bar_countries,
         args.cities_per_group,
     )
+    if not args.skip_country_map:
+        plot_country_membership_map(
+            data,
+            args.country_map_output,
+            args.min_tested_cities,
+        )
 
     print(f"Countries in gap plot: {len(selected_summary)}")
     print(f"Saved country gap plot to {args.gap_output}")
     print(f"Saved city bar plot to {args.bars_output}")
+    if not args.skip_country_map:
+        print(f"Saved country membership map to {args.country_map_output}")
     return 0
 
 

@@ -1,6 +1,5 @@
 import argparse
 import csv
-import math
 import re
 import sys
 from collections import defaultdict
@@ -17,8 +16,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="VpiCityQuantilesByCountry",
         description=(
-            "Select the top and bottom quantiles of city VPI scores within "
-            "each country."
+            "Find countries represented in the global top/bottom VPI quantiles "
+            "and report how many city appearances each country has in those groups."
         ),
     )
     parser.add_argument(
@@ -40,15 +39,30 @@ def parse_args():
         help="CSV output path for country-level tested city counts.",
     )
     parser.add_argument(
-        "--quantile",
+        "--selection-mode",
+        choices=["tail_percentile", "quantile_bucket"],
+        default="quantile_bucket",
+        help=(
+            "tail_percentile selects global top/bottom tails like 5%% and 95%%. "
+            "quantile_bucket selects broader global quantile buckets like top/bottom decile or quartile."
+        ),
+    )
+    parser.add_argument(
+        "--percentile",
         type=float,
-        default=0.25,
-        help="Fraction of cities to keep from each end of the VPI distribution.",
+        default=0.1,
+        help="Tail fraction for --selection-mode tail_percentile, e.g. 0.05 for 5%% and 95%%.",
+    )
+    parser.add_argument(
+        "--quantile-fraction",
+        type=float,
+        default=0.1,
+        help="Bucket fraction for --selection-mode quantile_bucket, e.g. 0.10 for top/bottom decile or 0.25 for quartile.",
     )
     parser.add_argument(
         "--min-images",
         type=int,
-        default=1,
+        default=300,
         help="Minimum total images required for a city to be included.",
     )
     parser.add_argument(
@@ -69,6 +83,18 @@ def parse_args():
         "--include-grid-regions",
         action="store_true",
         help="Include country-grid regions such as '<country> grid 0001'.",
+    )
+    parser.add_argument(
+        "--min-country-cities",
+        type=int,
+        default=5,
+        help="Minimum tested cities required for a country to appear in the printed rankings.",
+    )
+    parser.add_argument(
+        "--rank-count",
+        type=int,
+        default=10,
+        help="How many countries to show in the printed top/bottom percentile rankings.",
     )
     return parser.parse_args()
 
@@ -114,6 +140,21 @@ def parse_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def percentile(sorted_values, fraction):
+    if not sorted_values:
+        return None
+    if len(sorted_values) == 1:
+        return float(sorted_values[0])
+    position = max(0.0, min(1.0, float(fraction))) * (len(sorted_values) - 1)
+    lower_index = int(position)
+    upper_index = min(len(sorted_values) - 1, lower_index + 1)
+    if lower_index == upper_index:
+        return float(sorted_values[lower_index])
+    lower_value = float(sorted_values[lower_index])
+    upper_value = float(sorted_values[upper_index])
+    return lower_value + (upper_value - lower_value) * (position - lower_index)
 
 
 def is_country_grid_region(city, country):
@@ -191,34 +232,43 @@ def aggregate_city_scores(rows, aggregation):
     return cities
 
 
-def select_country_quantile_rows(cities, quantile):
-    if not 0 < quantile <= 0.5:
-        raise SystemExit("--quantile must be greater than 0 and no more than 0.5.")
+def select_global_percentile_rows(cities, percentile_fraction):
+    if not 0 < percentile_fraction < 0.5:
+        raise SystemExit(
+            "--percentile must be greater than 0 and less than 0.5.")
     if not cities:
         return []
 
-    cities_by_country = defaultdict(list)
-    for row in cities:
-        cities_by_country[row["country"]].append(row)
+    ordered_scores = sorted(row["vpi_score"] for row in cities)
+    bottom_cutoff = percentile(ordered_scores, percentile_fraction)
+    top_cutoff = percentile(ordered_scores, 1.0 - percentile_fraction)
 
     selected = []
-    for country_rows in cities_by_country.values():
-        selected_count = max(1, math.ceil(len(country_rows) * quantile))
-        ordered = sorted(
-            country_rows,
-            key=lambda row: (
-                row["vpi_score"],
-                normalize(row["city"]),
-            ),
-        )
+    for row in cities:
+        if row["vpi_score"] <= bottom_cutoff:
+            selected.append(dict(row, quantile_group="bottom"))
+        elif row["vpi_score"] >= top_cutoff:
+            selected.append(dict(row, quantile_group="top"))
+    return selected
 
-        selected.extend(
-            dict(row, quantile_group="bottom") for row in ordered[:selected_count]
-        )
-        selected.extend(
-            dict(row, quantile_group="top")
-            for row in reversed(ordered[-selected_count:])
-        )
+
+def select_global_quantile_bucket_rows(cities, quantile_fraction):
+    if not 0 < quantile_fraction <= 0.5:
+        raise SystemExit(
+            "--quantile-fraction must be greater than 0 and no more than 0.5.")
+    if not cities:
+        return []
+
+    ordered_scores = sorted(row["vpi_score"] for row in cities)
+    bottom_cutoff = percentile(ordered_scores, quantile_fraction)
+    top_cutoff = percentile(ordered_scores, 1.0 - quantile_fraction)
+
+    selected = []
+    for row in cities:
+        if row["vpi_score"] <= bottom_cutoff:
+            selected.append(dict(row, quantile_group="bottom"))
+        elif row["vpi_score"] >= top_cutoff:
+            selected.append(dict(row, quantile_group="top"))
     return selected
 
 
@@ -229,7 +279,7 @@ def country_counts(cities):
     return counts
 
 
-def write_outputs(selected_rows, tested_city_counts, output_path, summary_output_path):
+def write_outputs(selected_rows, tested_city_counts, output_path, summary_output_path, mode_label):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     summary_output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -252,8 +302,10 @@ def write_outputs(selected_rows, tested_city_counts, output_path, summary_output
         writer.writerow(
             [
                 "quantile_group",
+                "selection_mode",
                 "country",
                 "tested_city_count",
+                "country_tail_share",
                 "city",
                 "vpi_score",
                 "total_images",
@@ -264,8 +316,10 @@ def write_outputs(selected_rows, tested_city_counts, output_path, summary_output
             writer.writerow(
                 [
                     row["quantile_group"],
+                    mode_label,
                     row["country"],
                     tested_city_counts[row["country"]],
+                    f"{selected_count_by_country[row['country']][row['quantile_group']] / tested_city_counts[row['country']]:.6f}",
                     row["city"],
                     f"{row['vpi_score']:.6f}",
                     row["total_images"],
@@ -279,8 +333,13 @@ def write_outputs(selected_rows, tested_city_counts, output_path, summary_output
             [
                 "country",
                 "tested_city_count",
-                "top_quantile_city_count",
-                "bottom_quantile_city_count",
+                "selection_mode",
+                "top_percentile_appearances",
+                "top_percentile_city_count",
+                "top_percentile_share",
+                "bottom_percentile_appearances",
+                "bottom_percentile_city_count",
+                "bottom_percentile_share",
             ]
         )
         for country in sorted(tested_city_counts, key=normalize):
@@ -289,39 +348,129 @@ def write_outputs(selected_rows, tested_city_counts, output_path, summary_output
                 [
                     country,
                     tested_city_counts[country],
+                    mode_label,
                     selected["top"],
+                    selected["top"],
+                    f"{selected['top'] / tested_city_counts[country]:.6f}",
                     selected["bottom"],
+                    selected["bottom"],
+                    f"{selected['bottom'] / tested_city_counts[country]:.6f}",
                 ]
             )
 
 
-def print_country_sections(selected_rows, tested_city_counts):
-    by_country = defaultdict(list)
+def build_country_summary_rows(selected_rows, tested_city_counts):
+    selected_count_by_country = defaultdict(lambda: {"top": 0, "bottom": 0})
     for row in selected_rows:
-        by_country[row["country"]].append(row)
+        selected_count_by_country[row["country"]][row["quantile_group"]] += 1
 
-    for country in sorted(by_country, key=normalize):
-        print(f"\n{country} ({tested_city_counts[country]} cities tested)")
-        rows = sorted(
-            by_country[country],
-            key=lambda row: (
-                row["quantile_group"] != "top",
-                -row["vpi_score"] if row["quantile_group"] == "top" else row["vpi_score"],
-                normalize(row["city"]),
-            ),
+    summary_rows = []
+    for country, tested_city_count in tested_city_counts.items():
+        selected = selected_count_by_country[country]
+        summary_rows.append(
+            {
+                "country": country,
+                "tested_city_count": tested_city_count,
+                "top_percentile_appearances": selected["top"],
+                "top_percentile_city_count": selected["top"],
+                "top_percentile_share": (
+                    selected["top"] /
+                    tested_city_count if tested_city_count else 0.0
+                ),
+                "bottom_percentile_appearances": selected["bottom"],
+                "bottom_percentile_city_count": selected["bottom"],
+                "bottom_percentile_share": (
+                    selected["bottom"] /
+                    tested_city_count if tested_city_count else 0.0
+                ),
+            }
         )
-        for row in rows:
-            print(
-                f"{row['quantile_group']}: {row['city']} | "
-                f"VPI={row['vpi_score']:.6f} | "
-                f"images={row['total_images']} | regions={row['region_count']}"
-            )
+    return summary_rows
+
+
+def selection_label(selection_mode, percentile_fraction, quantile_fraction):
+    if selection_mode == "quantile_bucket":
+        return f"top/bottom {int(quantile_fraction * 100)}% quantile bucket"
+    return f"top/bottom {int(percentile_fraction * 100)}% tail"
+
+
+def print_rankings(
+    summary_rows,
+    min_images,
+    selection_mode,
+    percentile_fraction,
+    quantile_fraction,
+):
+    top_rows = [
+        row for row in summary_rows if row["top_percentile_appearances"] > 0
+    ]
+    bottom_rows = [
+        row for row in summary_rows if row["bottom_percentile_appearances"] > 0
+    ]
+    if not top_rows and not bottom_rows:
+        print("No countries appeared in the selected top/bottom groups.")
+        return
+
+    top_rows = sorted(
+        top_rows,
+        key=lambda row: (
+            -row["top_percentile_appearances"],
+            -row["tested_city_count"],
+            normalize(row["country"]),
+        ),
+    )
+    bottom_rows = sorted(
+        bottom_rows,
+        key=lambda row: (
+            -row["bottom_percentile_appearances"],
+            -row["tested_city_count"],
+            normalize(row["country"]),
+        ),
+    )
+
+    if selection_mode == "quantile_bucket":
+        fraction_text = int(quantile_fraction * 100)
+        top_text = f"global top {fraction_text}%"
+        bottom_text = f"global bottom {fraction_text}%"
+    else:
+        fraction_text = int(percentile_fraction * 100)
+        top_text = f"global top {fraction_text}% of VPI"
+        bottom_text = f"global bottom {fraction_text}% of VPI"
+
+    print(
+        f"Using only cities with at least {min_images} images:"
+    )
+    print()
+    print(f"Countries represented in the {top_text}, with appearance counts:")
+    for index, row in enumerate(top_rows, start=1):
+        print(
+            f"{index}. {row['country']}: "
+            f"{row['top_percentile_appearances']}/{row['tested_city_count']} "
+            f"({row['top_percentile_share'] * 100:.1f}%)"
+        )
+
+    print()
+    print(
+        f"Countries represented in the {bottom_text}, with appearance counts:")
+    for index, row in enumerate(bottom_rows, start=1):
+        print(
+            f"{index}. {row['country']}: "
+            f"{row['bottom_percentile_appearances']}/{row['tested_city_count']} "
+            f"({row['bottom_percentile_share'] * 100:.1f}%)"
+        )
 
 
 def main():
     args = parse_args()
     if args.min_images < 0:
         raise SystemExit("--min-images must be zero or greater.")
+    if args.min_country_cities < 1:
+        raise SystemExit("--min-country-cities must be at least 1.")
+    if args.rank_count < 1:
+        raise SystemExit("--rank-count must be at least 1.")
+    if not 0 < args.quantile_fraction <= 0.5:
+        raise SystemExit(
+            "--quantile-fraction must be greater than 0 and no more than 0.5.")
 
     rows = load_score_rows(args.scores, args.include_grid_regions)
     cities = aggregate_city_scores(rows, args.aggregation)
@@ -333,16 +482,31 @@ def main():
         print("No city VPI scores found.")
         return 0
 
-    selected_rows = select_country_quantile_rows(cities, args.quantile)
+    if args.selection_mode == "quantile_bucket":
+        selected_rows = select_global_quantile_bucket_rows(
+            cities, args.quantile_fraction)
+    else:
+        selected_rows = select_global_percentile_rows(cities, args.percentile)
     tested_city_counts = country_counts(cities)
+    summary_rows = build_country_summary_rows(
+        selected_rows, tested_city_counts)
+    mode_label = selection_label(
+        args.selection_mode, args.percentile, args.quantile_fraction)
 
     write_outputs(
         selected_rows,
         tested_city_counts,
         args.output,
         args.summary_output,
+        mode_label,
     )
-    print_country_sections(selected_rows, tested_city_counts)
+    print_rankings(
+        summary_rows,
+        args.min_images,
+        args.selection_mode,
+        args.percentile,
+        args.quantile_fraction,
+    )
     print(f"\nCities tested: {len(cities)}")
     print(f"Countries tested: {len(tested_city_counts)}")
     print(f"Saved selected city quantiles to {args.output}")

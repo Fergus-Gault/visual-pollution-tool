@@ -13,11 +13,18 @@ from src.database import DatabaseManager, Image, OSMFeature, Region  # noqa: E40
 
 
 DEFAULT_INCOME_ORDER = [
-    "Low income",
-    "Lower middle income",
-    "Upper middle income",
-    "High income",
+    "LI",
+    "LMI",
+    "UMI",
+    "HI",
 ]
+
+INCOME_LABEL_MAP = {
+    "Low income": "LI",
+    "Lower middle income": "LMI",
+    "Upper middle income": "UMI",
+    "High income": "HI",
+}
 
 
 def parse_args():
@@ -98,6 +105,7 @@ def load_classification_table(path):
     classifications["Income group"] = (
         classifications["Income group"].astype(str).str.strip()
     )
+    classifications["Income group"] = classifications["Income group"].replace(INCOME_LABEL_MAP)
     return classifications
 
 
