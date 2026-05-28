@@ -26,6 +26,38 @@ class Scorer:
             return scores.get(region_id, 0.0)
         return 0.0
 
+    def score_image(self, image_id):
+        scores = self.score_images([image_id])
+        return scores.get(image_id, 0.0)
+
+    def score_images(self, image_ids=None):
+        scores, _ = self.score_images_with_summary(image_ids=image_ids)
+        return scores
+
+    def score_images_with_summary(self, image_ids=None):
+        if not self.severity_scores:
+            if image_ids is None:
+                return {}, {}
+            return {image_id: 0.0 for image_id in image_ids}, {}
+
+        image_id_filter = self._normalize_image_ids(image_ids)
+        weighted_total_by_image, label_weights, severity_detection_counts = (
+            self._fetch_image_severity_aggregates(image_id_filter)
+        )
+        target_image_ids = self._target_image_ids(
+            image_id_filter, weighted_total_by_image, label_weights)
+
+        scores = {}
+        severity_count = len(self.severity_scores)
+        for image_id in target_image_ids:
+            scores[image_id] = self._compute_score_for_image(
+                image_id,
+                weighted_total_by_image,
+                label_weights,
+                severity_count,
+            )
+        return scores, severity_detection_counts
+
     def score_regions(self, region_ids=None, apply_image_threshold=True):
         if not self.severity_scores:
             if region_ids is None:
@@ -113,6 +145,16 @@ class Scorer:
             return None
         return set(region_ids)
 
+    def _normalize_image_ids(self, image_ids):
+        if image_ids is None:
+            return None
+        return set(image_ids)
+
+    def _clamp_confidence(self, confidence):
+        if confidence is None:
+            return 1.0
+        return min(max(float(confidence), 0.0), 1.0)
+
     def _fetch_image_count_by_region(self, region_id_filter):
         query = (
             self.db.session.query(Image.region_id, func.count(Image.id))
@@ -148,6 +190,40 @@ class Scorer:
             label_counts[region_id][label] = count
         return label_counts
 
+    def _fetch_image_severity_aggregates(self, image_id_filter):
+        query = (
+            self.db.session.query(
+                Detection.image_id,
+                Detection.label,
+                func.count(Detection.id),
+                func.sum(
+                    func.least(
+                        func.greatest(func.coalesce(Detection.confidence, 1.0), 0.0),
+                        1.0,
+                    )
+                ),
+            )
+            .filter(Detection.label.in_(list(self.severity_scores.keys())))
+            .group_by(Detection.image_id, Detection.label)
+        )
+        if image_id_filter is not None:
+            query = query.filter(Detection.image_id.in_(image_id_filter))
+
+        weighted_totals = defaultdict(float)
+        label_weights = defaultdict(lambda: defaultdict(float))
+        severity_detection_counts = defaultdict(int)
+        for image_id, label, count, confidence_sum in query.all():
+            detection_count = int(count or 0)
+            bounded_confidence_sum = float(confidence_sum or 0.0)
+            weighted_totals[image_id] += bounded_confidence_sum
+            label_weights[image_id][label] = bounded_confidence_sum
+            severity_detection_counts[image_id] += detection_count
+        return (
+            dict(weighted_totals),
+            {image_id: dict(weights) for image_id, weights in label_weights.items()},
+            dict(severity_detection_counts),
+        )
+
     def _fetch_total_osm_features_by_region(self, region_id_filter):
         query = (
             self.db.session.query(OSMFeature.region_id,
@@ -178,6 +254,11 @@ class Scorer:
             return region_id_filter
         return set(image_count_by_region.keys()) | set(total_by_region.keys()) | set(label_counts.keys())
 
+    def _target_image_ids(self, image_id_filter, weighted_total_by_image, label_weights):
+        if image_id_filter is not None:
+            return image_id_filter
+        return set(weighted_total_by_image.keys()) | set(label_weights.keys())
+
     def _target_osm_region_ids(self, region_id_filter, total_by_region, type_counts):
         if region_id_filter is not None:
             return region_id_filter
@@ -206,6 +287,20 @@ class Scorer:
         ccr = len(labels) / severity_count
         sws = sum(
             self.severity_scores[label] * count for label, count in labels.items()) / total
+        score = ccr * sws
+        if not math.isfinite(score):
+            return 0.0
+        return score
+
+    def _compute_score_for_image(self, image_id, weighted_total_by_image, label_weights, severity_count):
+        total = weighted_total_by_image.get(image_id, 0.0)
+        labels = label_weights.get(image_id, {})
+        if total <= 0.0 or not labels:
+            return 0.0
+        ccr = len(labels) / severity_count
+        sws = sum(
+            self.severity_scores[label] * weight for label, weight in labels.items()
+        ) / total
         score = ccr * sws
         if not math.isfinite(score):
             return 0.0

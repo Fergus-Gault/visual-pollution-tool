@@ -105,6 +105,7 @@ class ImageRepo(BaseRepo[Image]):
             'status': img.status or 'unreviewed',
             'width': img.width,
             'height': img.height,
+            'score': img.score,
         } for img in images]
         stmt = postgresql_insert(Image.__table__).values(rows)
         stmt = stmt.on_conflict_do_nothing(index_elements=['id_from_source'])
@@ -138,6 +139,14 @@ class ImageRepo(BaseRepo[Image]):
             return False
         image.width = width
         image.height = height
+        self.commit()
+        return True
+
+    def update_score(self, image_id, score):
+        image = self.get_by_id(image_id)
+        if not image:
+            return False
+        image.score = score
         self.commit()
         return True
 

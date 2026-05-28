@@ -48,6 +48,7 @@ class Image(Base):
     status = Column(String, default="unreviewed", nullable=False)
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
+    score = Column(Float, nullable=True)
     region = relationship("Region", back_populates="images")
     detections = relationship(
         "Detection", back_populates="image", cascade="all, delete-orphan")

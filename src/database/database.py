@@ -37,6 +37,7 @@ class DatabaseManager:
         statements = [
             "CREATE INDEX IF NOT EXISTS idx_images_region_id ON images (region_id)",
             "ALTER TABLE images ADD COLUMN IF NOT EXISTS url_fetched_at TIMESTAMP WITH TIME ZONE",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS score DOUBLE PRECISION",
             "CREATE INDEX IF NOT EXISTS idx_images_source_url_fetched_at ON images (source, url_fetched_at)",
             "CREATE INDEX IF NOT EXISTS idx_detections_image_id ON detections (image_id)",
             "CREATE INDEX IF NOT EXISTS idx_osm_features_region_id ON osm_features (region_id)",
@@ -240,6 +241,9 @@ class DatabaseManager:
 
     def update_image_dimensions(self, image_id, width, height):
         return self.images.update_dimensions(image_id, width, height)
+
+    def update_image_score(self, image_id, score):
+        return self.images.update_score(image_id, score)
 
     def get_all_detections(self):
         return self.detections.get_all()

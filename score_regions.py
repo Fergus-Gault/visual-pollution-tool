@@ -200,6 +200,23 @@ if __name__ == "__main__":
     scored_rows = sorted(scored_rows, key=lambda row: row[3], reverse=True)
     with open(scores_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
+        if args.method in {"osm", "vpi_osm"}:
+            writer.writerow([
+                "region_id",
+                "city",
+                "country",
+                "image_count",
+                "osm_feature_count",
+                "score",
+            ])
+        else:
+            writer.writerow([
+                "region_id",
+                "city",
+                "country",
+                "image_count",
+                "score",
+            ])
         for region_id, city, country, score in scored_rows:
             image_count = image_count_by_region.get(region_id, 0)
             if args.method in {"osm", "vpi_osm"}:
