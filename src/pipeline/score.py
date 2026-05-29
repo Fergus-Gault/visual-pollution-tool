@@ -6,6 +6,9 @@ from sqlalchemy import func
 
 
 class Scorer:
+    CCR_EXCLUDED_DETECTION_LABELS = {"road_sign"}
+    CCR_EXCLUDED_OSM_TYPES = {"road_sign", "traffic_sign"}
+
     def __init__(self, db: DatabaseManager):
         self.severity_scores = ScoreConfig.SEVERITY_SCORES
         self.osm_severity_scores = ScoreConfig.OSM_SEVERITY_SCORES
@@ -48,7 +51,8 @@ class Scorer:
             image_id_filter, weighted_total_by_image, label_weights)
 
         scores = {}
-        severity_count = len(self.severity_scores)
+        severity_count = self._ccr_category_count(
+            self.severity_scores, self.CCR_EXCLUDED_DETECTION_LABELS)
         for image_id in target_image_ids:
             scores[image_id] = self._compute_score_for_image(
                 image_id,
@@ -261,7 +265,8 @@ class Scorer:
 
     def _build_scores(self, target_region_ids, image_count_by_region, total_by_region, label_counts, apply_image_threshold):
         scores = {}
-        severity_count = len(self.severity_scores)
+        severity_count = self._ccr_category_count(
+            self.severity_scores, self.CCR_EXCLUDED_DETECTION_LABELS)
         for region_id in target_region_ids:
             if apply_image_threshold and image_count_by_region.get(region_id, 0) < ScoreConfig.IMAGES_PER_REGION_THRESHOLD:
                 scores[region_id] = 0.0
@@ -279,7 +284,8 @@ class Scorer:
         labels = label_counts.get(region_id, {})
         if total == 0 or not labels:
             return 0.0
-        ccr = len(labels) / severity_count
+        ccr = self._compute_ccr(
+            labels.keys(), severity_count, self.CCR_EXCLUDED_DETECTION_LABELS)
         sws = sum(
             self.severity_scores[label] * count for label, count in labels.items()) / total
         score = ccr * sws
@@ -292,7 +298,8 @@ class Scorer:
         labels = label_weights.get(image_id, {})
         if total <= 0.0 or not labels:
             return 0.0
-        ccr = len(labels) / severity_count
+        ccr = self._compute_ccr(
+            labels.keys(), severity_count, self.CCR_EXCLUDED_DETECTION_LABELS)
         sws = sum(
             self.severity_scores[label] * weight for label, weight in labels.items()
         ) / total
@@ -306,11 +313,23 @@ class Scorer:
         types = type_counts.get(region_id, {})
         if total == 0 or not types:
             return 0.0
-        ccr = len(types) / len(self.osm_severity_scores)
+        severity_count = self._ccr_category_count(
+            self.osm_severity_scores, self.CCR_EXCLUDED_OSM_TYPES)
+        ccr = self._compute_ccr(
+            types.keys(), severity_count, self.CCR_EXCLUDED_OSM_TYPES)
         sws = sum(
             self.osm_severity_scores[osm_type] * count for osm_type, count in types.items()) / total
         score = ccr * sws
         if not math.isfinite(score):
             return 0.0
         return score
+
+    def _ccr_category_count(self, severity_scores, excluded_labels):
+        return len(set(severity_scores.keys()) - excluded_labels)
+
+    def _compute_ccr(self, labels, severity_count, excluded_labels):
+        if severity_count <= 0:
+            return 0.0
+        included_labels = set(labels) - excluded_labels
+        return len(included_labels) / severity_count
 
