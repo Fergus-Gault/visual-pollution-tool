@@ -24,13 +24,13 @@ class KartaviewAPI(APIManager):
             self.rate_limiter.acquire()
         return self.http_client.get(endpoint, params=params, session=session, headers=self.default_headers)
 
-    def fetch_region(self, bbox, num_subregions=KartaviewConfig.SUBREGIONS, dense_scan=False):
-        return super().fetch_region(bbox, num_subregions, dense_scan)
+    def fetch_region(self, bbox, num_subregions=KartaviewConfig.SUBREGIONS, dense_scan=False, **kwargs):
+        return super().fetch_region(bbox, num_subregions, dense_scan, **kwargs)
 
     def _num_workers(self):
         return PipelineConfig.KARTAVIEW_WORKERS
 
-    def _fetch_subregion(self, subregion: BoundingBox, session=None):
+    def _fetch_subregion(self, subregion: BoundingBox, session=None, **kwargs):
         params = ImageRequest(subregion).to_kartaview_params()
 
         try:

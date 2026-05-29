@@ -4,7 +4,8 @@ from .client import HTTPClient
 from .kartaview import KartaviewAPI
 from .mapillary import MapillaryAPI
 from .osm import OSMApi, OSMFeatureClassifier
-from src.config import PipelineConfig
+from dotenv import dotenv_values
+from src.config import Config, PipelineConfig
 from src.utils import RateLimiter
 
 
@@ -38,7 +39,7 @@ def normalise_image_sources(value):
     return sources
 
 
-def build_image_apis(image_sources=None, mapillary_token=None):
+def build_image_apis(image_sources=None, mapillary_token=None, kartaview_token=None):
     sources = normalise_image_sources(image_sources)
     apis = []
     if "mapillary" in sources:
@@ -49,9 +50,20 @@ def build_image_apis(image_sources=None, mapillary_token=None):
             )
         )
     if "kartaview" in sources:
+        token = kartaview_token or dotenv_values(
+            Config.ENV_PATH).get("KARTAVIEW_ACCESS_TOKEN")
+        max_calls = (
+            PipelineConfig.KARTAVIEW_AUTHENTICATED_RATE_LIMIT
+            if token
+            else PipelineConfig.KARTAVIEW_UNAUTHENTICATED_RATE_LIMIT
+        )
         apis.append(
             KartaviewAPI(
-                rate_limiter=RateLimiter(max_calls=PipelineConfig.KARTAVIEW_RATE_LIMIT)
+                access_token=token,
+                rate_limiter=RateLimiter(
+                    max_calls=max_calls,
+                    period=PipelineConfig.KARTAVIEW_RATE_LIMIT_PERIOD_SECONDS,
+                ),
             )
         )
     return apis

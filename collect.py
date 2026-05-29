@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--region-method", "-mr", default="shape")
     parser.add_argument("--dense", "-dn", action="store_true")
     parser.add_argument("--fetch-osm", "-fo", action="store_true")
-    parser.add_argument("--image-sources", "-is", default="both",
+    parser.add_argument("--image-sources", "-is", default="mapillary",
                         help="Comma-separated image sources: mapillary, kartaview, or both.")
     args = parser.parse_args()
     if args.debug:

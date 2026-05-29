@@ -34,7 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--collect-only", "-co", action="store_true")
     parser.add_argument("--override", "-or", action="store_true")
     parser.add_argument("--region-method", "-mr", default="shape")
-    parser.add_argument("--image-sources", "-is", default="both",
+    parser.add_argument("--image-sources", "-is", default="mapillary",
                         help="Comma-separated image sources: mapillary, kartaview, or both.")
     parser.add_argument("--dense", "-dn", action="store_true")
     parser.add_argument("--fetch-osm", "-fo",
@@ -69,7 +69,8 @@ if __name__ == "__main__":
         population = parse_population(row)
         lng, lat = parse_coords(row)
         if lng is None or lat is None:
-            coords = pipeline.get_lnglat(city, country) if city and country else None
+            coords = pipeline.get_lnglat(
+                city, country) if city and country else None
             if coords is None:
                 continue
             lng, lat = coords
