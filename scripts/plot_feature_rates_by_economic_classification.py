@@ -20,6 +20,9 @@ DEFAULT_INCOME_ORDER = [
     "UMI",
     "HI",
 ]
+PLOT_DPI = 600
+TITLE_FONT_SIZE = 13
+TICK_FONT_SIZE = 12
 
 INCOME_LABEL_MAP = {
     "Low income": "LI",
@@ -80,6 +83,12 @@ def parse_args():
         type=Path,
         default=Path("data"),
         help="Base folder for generated rate CSV files.",
+    )
+    parser.add_argument(
+        "--min-images",
+        type=int,
+        default=300,
+        help="Only include regions with more than this many images.",
     )
     parser.add_argument(
         "--min-osm-features",
@@ -160,7 +169,29 @@ def load_classification_table(path):
     return classifications
 
 
-def load_osm_rates(db, min_total_features):
+def load_region_image_counts(db):
+    return pd.DataFrame(
+        db.session.query(
+            Region.id.label("region_id"),
+            func.count(Image.id).label("image_count"),
+        )
+        .join(Image, Image.region_id == Region.id)
+        .group_by(Region.id)
+        .all(),
+        columns=["region_id", "image_count"],
+    )
+
+
+def filter_by_min_images(region_totals, image_counts, min_images):
+    if region_totals.empty or image_counts.empty:
+        return pd.DataFrame()
+
+    filtered = region_totals.merge(image_counts, on="region_id", how="inner")
+    return filtered[filtered["image_count"] > min_images].copy()
+
+
+def load_osm_rates(db, min_total_features, min_images):
+    image_counts = load_region_image_counts(db)
     region_totals = pd.DataFrame(
         db.session.query(
             Region.id.label("region_id"),
@@ -183,6 +214,10 @@ def load_osm_rates(db, min_total_features):
         ],
     )
 
+    if region_totals.empty:
+        return pd.DataFrame()
+
+    region_totals = filter_by_min_images(region_totals, image_counts, min_images)
     if region_totals.empty:
         return pd.DataFrame()
 
@@ -211,7 +246,8 @@ def load_osm_rates(db, min_total_features):
     return rates
 
 
-def load_detection_rates(db, min_total_detections):
+def load_detection_rates(db, min_total_detections, min_images):
+    image_counts = load_region_image_counts(db)
     region_totals = pd.DataFrame(
         db.session.query(
             Region.id.label("region_id"),
@@ -235,6 +271,10 @@ def load_detection_rates(db, min_total_detections):
         ],
     )
 
+    if region_totals.empty:
+        return pd.DataFrame()
+
+    region_totals = filter_by_min_images(region_totals, image_counts, min_images)
     if region_totals.empty:
         return pd.DataFrame()
 
@@ -313,6 +353,10 @@ def exclude_categories(data, category_column, excluded_categories):
     return data[~data[category_column].isin(excluded)].copy()
 
 
+def format_category_title(category):
+    return re.sub(r"\s+", " ", str(category).replace("_", " ")).strip().title()
+
+
 def draw_category_panel(ax, subset, category, colour, median_colour, show_xlabel=True):
     income_order = order_income_groups(subset["Income group"].unique())
     x_lookup = {label: index for index, label in enumerate(income_order)}
@@ -347,21 +391,22 @@ def draw_category_panel(ax, subset, category, colour, median_colour, show_xlabel
             markersize=4,
         )
 
-    ax.set_title(category)
+    ax.set_title(format_category_title(category), fontsize=TITLE_FONT_SIZE, fontweight="bold")
     ax.set_xlabel("" if show_xlabel else "")
-    ax.set_ylabel("Rate within region")
+    ax.set_ylabel("")
     ax.set_xticks(range(len(income_order)))
-    ax.set_xticklabels(income_order, rotation=25, ha="right")
+    ax.set_xticklabels(income_order, rotation=25, ha="right", fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.set_ylim(0, 1)
     ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.7)
     ax.grid(False, axis="x")
 
 def plot_single_category(subset, category, output_path, title, colour, median_colour):
-    fig, ax = plt.subplots(figsize=(7.2, 5.2), dpi=180)
+    fig, ax = plt.subplots(figsize=(7.2, 5.2), dpi=PLOT_DPI)
     draw_category_panel(ax, subset, category, colour, median_colour)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
 
 
@@ -378,7 +423,7 @@ def plot_combined_categories(data, source_key, output_path, subplot_columns):
         rows,
         columns,
         figsize=(5.1 * columns, 3.8 * rows),
-        dpi=180,
+        dpi=PLOT_DPI,
         squeeze=False,
     )
 
@@ -403,7 +448,7 @@ def plot_combined_categories(data, source_key, output_path, subplot_columns):
 
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
     return len(categories)
 
@@ -459,7 +504,7 @@ def main():
     classifications = load_classification_table(args.classification_csv)
     db = DatabaseManager()
 
-    osm_rates = load_osm_rates(db, args.min_osm_features)
+    osm_rates = load_osm_rates(db, args.min_osm_features, args.min_images)
     osm_rates = merge_with_classifications(osm_rates, classifications)
     osm_rates = filter_categories(
         osm_rates,
@@ -472,7 +517,7 @@ def main():
         args.exclude_osm_categories,
     )
 
-    detection_rates = load_detection_rates(db, args.min_detections)
+    detection_rates = load_detection_rates(db, args.min_detections, args.min_images)
     detection_rates = merge_with_classifications(detection_rates, classifications)
     detection_rates = filter_categories(
         detection_rates,

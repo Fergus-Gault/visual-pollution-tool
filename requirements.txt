@@ -3,6 +3,7 @@ branca==0.8.2
 folium==0.20.0
 geopandas==1.1.2
 geopy==2.4.1
+kaleido==1.2.0
 label-studio==1.22.0
 label-studio-sdk==2.0.16
 matplotlib==3.10.8

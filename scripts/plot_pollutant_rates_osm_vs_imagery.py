@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 from sqlalchemy import func
@@ -33,6 +34,31 @@ INCOME_COLOR_MAP = {
     "UMI": "#67a9cf",
     "HI": "#2166ac",
 }
+
+PLOT_DPI = 600
+SINGLE_PLOT_FIGSIZE = (5.0, 2.5)
+PANEL_PLOT_FIGSIZE = (5.0, 2.5)
+BASE_FONT_SIZE = 7.5
+ANNOTATION_FONT_SIZE = 6.0
+SUMMARY_FONT_SIZE = 6.0
+POINT_ALPHA = 0.32
+POINT_EDGE_WIDTH = 0.0
+GUIDE_LINE_WIDTH = 0.65
+SPINE_WIDTH = 0.65
+GRID_LINE_WIDTH = 0.35
+GRID_ALPHA = 0.45
+
+plt.rcParams.update(
+    {
+        "font.size": BASE_FONT_SIZE,
+        "axes.titlesize": BASE_FONT_SIZE,
+        "axes.labelsize": BASE_FONT_SIZE,
+        "xtick.labelsize": BASE_FONT_SIZE,
+        "ytick.labelsize": BASE_FONT_SIZE,
+        "legend.fontsize": BASE_FONT_SIZE,
+        "legend.title_fontsize": BASE_FONT_SIZE,
+    }
+)
 
 
 DEFAULT_POLLUTANT_MAP = {
@@ -320,7 +346,7 @@ def get_split_axis_limits(values):
 def create_y_axes(values, figsize):
     split_limits = get_split_axis_limits(values)
     if split_limits is None:
-        fig, ax = plt.subplots(figsize=figsize, dpi=180)
+        fig, ax = plt.subplots(figsize=figsize, dpi=PLOT_DPI)
         return fig, [ax], None
 
     fig, (ax_top, ax_bottom) = plt.subplots(
@@ -328,7 +354,7 @@ def create_y_axes(values, figsize):
         1,
         sharex=True,
         figsize=figsize,
-        dpi=180,
+        dpi=PLOT_DPI,
         gridspec_kw={"height_ratios": [1.2, 3.2], "hspace": 0.05},
     )
     ax_top.set_ylim(*split_limits["upper_ylim"])
@@ -362,11 +388,11 @@ def configure_split_axis(ax_top, ax_bottom, split_limits):
     diagonal_size = 0.012
     marker_kwargs = dict(
         marker=[(-1, -1), (1, 1)],
-        markersize=9,
+        markersize=5,
         linestyle="none",
         color="#111111",
         mec="#111111",
-        mew=1.0,
+        mew=0.8,
         clip_on=False,
     )
     ax_top.plot([0, 1], [0, 0], transform=ax_top.transAxes, **marker_kwargs)
@@ -379,7 +405,7 @@ def create_source_axes_pair(imagery_values, osm_values, figsize):
     osm_split = get_split_axis_limits(osm_values)
     use_split_layout = imagery_split is not None or osm_split is not None
 
-    fig = plt.figure(figsize=figsize, dpi=180, constrained_layout=True)
+    fig = plt.figure(figsize=figsize, dpi=PLOT_DPI, constrained_layout=True)
     if use_split_layout:
         gs = fig.add_gridspec(
             2,
@@ -410,11 +436,24 @@ def create_source_axes_pair(imagery_values, osm_values, figsize):
     return fig, axes_by_source, split_by_source
 
 
+def apply_compact_axis_style(ax, prune_y_ticks=False):
+    ax.grid(True, axis="y", color="#d1d5db",
+            linewidth=GRID_LINE_WIDTH, alpha=GRID_ALPHA)
+    ax.grid(False, axis="x")
+    ax.set_axisbelow(True)
+    ax.tick_params(axis="both", width=SPINE_WIDTH,
+                   length=2.4, pad=1.5, colors="#111111")
+    for spine in ax.spines.values():
+        spine.set_linewidth(SPINE_WIDTH)
+    if prune_y_ticks:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=4, prune="both"))
+    else:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
+
+
 def apply_axis_formatting(axes, ylabel):
     for ax in axes:
-        ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.65)
-        ax.grid(False, axis="x")
-        ax.set_axisbelow(True)
+        apply_compact_axis_style(ax, prune_y_ticks=len(axes) > 1)
     if len(axes) == 1:
         axes[0].set_ylabel(ylabel)
     else:
@@ -776,18 +815,17 @@ def region_label(row):
 
 
 def apply_source_panel_formatting(axes_by_source, x_label, x_ticks=None, x_ticklabels=None):
-    for source, axes in axes_by_source.items():
-        title = "Imagery rate" if source == "imagery" else "OSM rate"
-        axes[0].set_title(title)
-        apply_axis_formatting(axes, "Rate")
-        axes[-1].set_xlabel(x_label)
+    for axes in axes_by_source.values():
+        axes[0].set_title("")
+        apply_axis_formatting(axes, "")
+        axes[-1].set_xlabel("")
         if x_ticks is not None:
             for ax in axes:
                 ax.set_xticks(x_ticks)
                 if x_ticklabels is not None:
-                    ax.set_xticklabels(x_ticklabels, rotation=25, ha="right")
+                    ax.set_xticklabels(x_ticklabels, rotation=25, ha="center")
         for ax in axes:
-            ax.margins(x=0.01)
+            ax.margins(x=0.06)
 
 
 def plot_xy_rate_scatter(
@@ -803,21 +841,21 @@ def plot_xy_rate_scatter(
         raise SystemExit("No data available to plot.")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8.8, 7.0), dpi=180)
+    fig, ax = plt.subplots(figsize=SINGLE_PLOT_FIGSIZE, dpi=PLOT_DPI)
 
     point_sizes = np.clip(
         np.sqrt(subset[point_size_column].astype(float).clip(lower=1.0)) * size_scale,
-        28,
-        135,
+        6,
+        34,
     )
     ax.scatter(
         subset["imagery_rate"],
         subset["osm_rate"],
         s=point_sizes,
         color=point_color,
-        alpha=0.78,
-        edgecolors="white",
-        linewidths=0.6,
+        alpha=POINT_ALPHA,
+        edgecolors="none",
+        linewidths=POINT_EDGE_WIDTH,
     )
 
     axis_max = float(
@@ -832,9 +870,9 @@ def plot_xy_rate_scatter(
         [0.0, axis_limit],
         [0.0, axis_limit],
         color="#6b7280",
-        linewidth=1.0,
+        linewidth=GUIDE_LINE_WIDTH,
         linestyle="--",
-        alpha=0.75,
+        alpha=0.65,
     )
 
     for row in subset.itertuples(index=False):
@@ -846,20 +884,19 @@ def plot_xy_rate_scatter(
             (row.imagery_rate, row.osm_rate),
             textcoords="offset points",
             xytext=(4, 4),
-            fontsize=7.5,
+            fontsize=ANNOTATION_FONT_SIZE,
             color="#262626",
         )
 
-    ax.set_title(title, y=0.995)
-    ax.set_xlabel("Imagery rate")
-    ax.set_ylabel("OSM rate")
+    ax.set_title("")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
     ax.set_xlim(0.0, axis_limit)
     ax.set_ylim(0.0, axis_limit)
     ax.set_aspect("equal", adjustable="box")
-    ax.grid(True, color="#d1d5db", linewidth=0.7, alpha=0.65)
-    ax.set_axisbelow(True)
+    apply_compact_axis_style(ax)
     fig.tight_layout()
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
 
 
@@ -907,20 +944,20 @@ def plot_country_correlation_scatter(subset, pollutant, output_path, label_top_d
         return None
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8.8, 7.0), dpi=180)
+    fig, ax = plt.subplots(figsize=SINGLE_PLOT_FIGSIZE, dpi=PLOT_DPI)
     point_sizes = np.clip(
         np.sqrt(subset["image_count"].astype(float).clip(lower=1.0)) * 1.4,
-        28,
-        135,
+        6,
+        34,
     )
     ax.scatter(
         subset["imagery_rate"],
         subset["osm_rate"],
         s=point_sizes,
         color="#7c3aed",
-        alpha=0.78,
-        edgecolors="white",
-        linewidths=0.6,
+        alpha=POINT_ALPHA,
+        edgecolors="none",
+        linewidths=POINT_EDGE_WIDTH,
     )
 
     axis_max = float(max(subset["imagery_rate"].max(), subset["osm_rate"].max(), 0.01))
@@ -929,9 +966,9 @@ def plot_country_correlation_scatter(subset, pollutant, output_path, label_top_d
         [0.0, axis_limit],
         [0.0, axis_limit],
         color="#6b7280",
-        linewidth=1.0,
+        linewidth=GUIDE_LINE_WIDTH,
         linestyle="--",
-        alpha=0.75,
+        alpha=0.65,
     )
 
     if math.isfinite(stats["slope"]) and math.isfinite(stats["intercept"]):
@@ -941,8 +978,8 @@ def plot_country_correlation_scatter(subset, pollutant, output_path, label_top_d
             x_values,
             y_values,
             color="#4c1d95",
-            linewidth=1.5,
-            alpha=0.85,
+            linewidth=0.9,
+            alpha=0.8,
         )
 
     if label_top_differences:
@@ -953,19 +990,17 @@ def plot_country_correlation_scatter(subset, pollutant, output_path, label_top_d
                 (row["imagery_rate"], row["osm_rate"]),
                 textcoords="offset points",
                 xytext=(4, 4),
-                fontsize=7.5,
+                fontsize=ANNOTATION_FONT_SIZE,
                 color="#262626",
             )
 
-    pretty_pollutant = pollutant.replace("_", " ").title()
-    ax.set_title(pretty_pollutant, y=0.995)
-    ax.set_xlabel("Imagery rate")
-    ax.set_ylabel("OSM rate")
+    ax.set_title("")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
     ax.set_xlim(0.0, axis_limit)
     ax.set_ylim(0.0, axis_limit)
     ax.set_aspect("equal", adjustable="box")
-    ax.grid(True, color="#d1d5db", linewidth=0.7, alpha=0.65)
-    ax.set_axisbelow(True)
+    apply_compact_axis_style(ax)
     ax.text(
         0.995,
         0.02,
@@ -977,11 +1012,11 @@ def plot_country_correlation_scatter(subset, pollutant, output_path, label_top_d
         transform=ax.transAxes,
         ha="right",
         va="bottom",
-        fontsize=8.5,
+        fontsize=SUMMARY_FONT_SIZE,
         color="#374151",
     )
     fig.tight_layout()
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
     return stats
 
@@ -997,29 +1032,28 @@ def plot_country_bias(subset, pollutant, output_path):
     plotted["point_color"] = plotted["Income group"].map(INCOME_COLOR_MAP).fillna("#6b7280")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8.8, 7.0), dpi=180)
+    fig, ax = plt.subplots(figsize=SINGLE_PLOT_FIGSIZE, dpi=PLOT_DPI)
     point_sizes = np.clip(
         np.sqrt(plotted["image_count"].astype(float).clip(lower=1.0)) * 1.4,
-        28,
-        135,
+        6,
+        34,
     )
     ax.scatter(
         plotted["mean_rate"],
         plotted["rate_difference"],
         s=point_sizes,
         c=plotted["point_color"],
-        alpha=0.78,
-        edgecolors="white",
-        linewidths=0.6,
+        alpha=POINT_ALPHA,
+        edgecolors="none",
+        linewidths=POINT_EDGE_WIDTH,
     )
-    ax.axhline(0.0, color="#6b7280", linewidth=1.0, linestyle="--", alpha=0.75)
+    ax.axhline(0.0, color="#6b7280", linewidth=GUIDE_LINE_WIDTH,
+               linestyle="--", alpha=0.65)
 
-    pretty_pollutant = pollutant.replace("_", " ").title()
-    ax.set_title(pretty_pollutant, y=0.995)
-    ax.set_xlabel("Mean rate")
-    ax.set_ylabel("OSM - imagery")
-    ax.grid(True, color="#d1d5db", linewidth=0.7, alpha=0.65)
-    ax.set_axisbelow(True)
+    ax.set_title("")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    apply_compact_axis_style(ax)
 
     legend_handles = []
     for income_group in DEFAULT_INCOME_ORDER:
@@ -1032,9 +1066,9 @@ def plot_country_bias(subset, pollutant, output_path):
                 marker="o",
                 linestyle="",
                 markerfacecolor=INCOME_COLOR_MAP.get(income_group, "#6b7280"),
-                markeredgecolor="white",
-                markeredgewidth=0.6,
-                markersize=7,
+                markeredgecolor="none",
+                markeredgewidth=0.0,
+                markersize=4,
                 label=income_group,
             )
         )
@@ -1046,9 +1080,9 @@ def plot_country_bias(subset, pollutant, output_path):
                 marker="o",
                 linestyle="",
                 markerfacecolor="#6b7280",
-                markeredgecolor="white",
-                markeredgewidth=0.6,
-                markersize=7,
+                markeredgecolor="none",
+                markeredgewidth=0.0,
+                markersize=4,
                 label="Unknown",
             )
         )
@@ -1056,9 +1090,7 @@ def plot_country_bias(subset, pollutant, output_path):
         ax.legend(
             handles=legend_handles,
             frameon=False,
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            borderaxespad=0.0,
+            loc="best",
             title="Income group",
         )
 
@@ -1073,11 +1105,11 @@ def plot_country_bias(subset, pollutant, output_path):
         transform=ax.transAxes,
         ha="right",
         va="bottom",
-        fontsize=8.5,
+        fontsize=SUMMARY_FONT_SIZE,
         color="#374151",
     )
-    fig.tight_layout(rect=[0, 0, 0.86, 1])
-    fig.savefig(output_path)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
     return True
 
@@ -1099,7 +1131,7 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
     fig, axes_by_source, split_by_source = create_source_axes_pair(
         subset["imagery_rate"].to_numpy(),
         subset["osm_rate"].to_numpy(),
-        figsize=(15.5, 6.8),
+        figsize=PANEL_PLOT_FIGSIZE,
     )
     for ax in axes_by_source["imagery"]:
         draw_candles(
@@ -1110,8 +1142,8 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
             width=0.82,
             up_color="#2166ac",
             down_color="#2166ac",
-            alpha=0.72,
-            linewidth=1.6,
+            alpha=0.38,
+            linewidth=0.8,
             cap_width_ratio=0.85,
         )
     for ax in axes_by_source["osm"]:
@@ -1123,8 +1155,8 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
             width=0.82,
             up_color="#b2182b",
             down_color="#b2182b",
-            alpha=0.72,
-            linewidth=1.6,
+            alpha=0.38,
+            linewidth=0.8,
             cap_width_ratio=0.85,
         )
     for ax in axes_by_source["imagery"]:
@@ -1132,8 +1164,8 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
             x,
             subset["imagery_rate"],
             color="#0f3f75",
-            linewidth=1.5,
-            alpha=0.9,
+            linewidth=0.9,
+            alpha=0.85,
             label="Mean",
         )
     for ax in axes_by_source["osm"]:
@@ -1141,8 +1173,8 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
             x,
             subset["osm_rate"],
             color="#7f1d1d",
-            linewidth=1.5,
-            alpha=0.9,
+            linewidth=0.9,
+            alpha=0.85,
             label="Mean",
         )
 
@@ -1163,19 +1195,17 @@ def plot_pollutant_candlestick(subset, pollutant, rate_mode, output_path, label_
                     (row["ordered_region_index"], label_y),
                     xytext=(4, 4),
                     textcoords="offset points",
-                    fontsize=7.5,
+                    fontsize=ANNOTATION_FONT_SIZE,
                     color="#262626",
                 )
 
-    pretty_pollutant = pollutant.replace("_", " ").title()
-    fig.suptitle(pretty_pollutant, y=0.995)
     apply_source_panel_formatting(
         axes_by_source, "Regions ordered by imagery rate")
     for axes in axes_by_source.values():
         axes[-1].legend(frameon=False, loc="upper left")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
 
 
@@ -1244,10 +1274,10 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
     fig, axes_by_source, _ = create_source_axes_pair(
         subset["imagery_rate"].to_numpy(),
         subset["osm_rate"].to_numpy(),
-        figsize=(12.5, 6.8),
+        figsize=PANEL_PLOT_FIGSIZE,
     )
     sizes = np.clip(np.sqrt(subset["image_count"].astype(
-        float).clip(lower=1)) * 1.35, 15, 58)
+        float).clip(lower=1)) * 0.55, 4, 16)
 
     for ax in axes_by_source["imagery"]:
         ax.scatter(
@@ -1255,7 +1285,7 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
             imagery_points["imagery_rate"],
             s=sizes,
             color="#2166ac",
-            alpha=0.7,
+            alpha=0.26,
             edgecolors="none",
         )
     for ax in axes_by_source["osm"]:
@@ -1264,7 +1294,7 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
             osm_points["osm_rate"],
             s=sizes,
             color="#b2182b",
-            alpha=0.7,
+            alpha=0.26,
             edgecolors="none",
         )
 
@@ -1286,9 +1316,9 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
                 [x_lookup[group] - 0.1 for group in valid_imagery.index],
                 valid_imagery.values,
                 color="#0f3f75",
-                linewidth=1.8,
+                linewidth=0.9,
                 marker="o",
-                markersize=4,
+                markersize=2.5,
             )
 
     valid_osm = osm_medians.dropna()
@@ -1298,13 +1328,11 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
                 [x_lookup[group] + 0.1 for group in valid_osm.index],
                 valid_osm.values,
                 color="#7f1d1d",
-                linewidth=1.8,
+                linewidth=0.9,
                 marker="o",
-                markersize=4,
+                markersize=2.5,
             )
 
-    pretty_pollutant = pollutant.replace("_", " ").title()
-    fig.suptitle(pretty_pollutant, y=0.995)
     apply_source_panel_formatting(
         axes_by_source,
         "Economic classification",
@@ -1313,7 +1341,7 @@ def plot_pollutant_by_economic_split_scatter(subset, pollutant, rate_mode, outpu
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
     return True
 
@@ -1327,7 +1355,7 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
     fig, axes_by_source, _ = create_source_axes_pair(
         subset["imagery_rate"].to_numpy(),
         subset["osm_rate"].to_numpy(),
-        figsize=(12.5, 6.8),
+        figsize=PANEL_PLOT_FIGSIZE,
     )
 
     def summary_table(column_name):
@@ -1360,16 +1388,16 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
                     row["min"],
                     row["max"],
                     color=body_color,
-                    linewidth=1.5,
-                    alpha=0.8,
+                    linewidth=0.8,
+                    alpha=0.65,
                 )
                 ax.hlines(
                     [row["min"], row["max"]],
                     x_value - 0.1,
                     x_value + 0.1,
                     color=body_color,
-                    linewidth=1.5,
-                    alpha=0.8,
+                    linewidth=0.8,
+                    alpha=0.65,
                 )
                 rect = plt.Rectangle(
                     (x_value - 0.14, row["q1"]),
@@ -1377,7 +1405,7 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
                     max(row["q3"] - row["q1"], 1e-9),
                     facecolor=body_color,
                     edgecolor=body_color,
-                    alpha=0.55,
+                    alpha=0.38,
                     label=label if first and axis_index == len(
                         axes) - 1 else None,
                 )
@@ -1387,7 +1415,7 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
                     x_value - 0.14,
                     x_value + 0.14,
                     color="#111827",
-                    linewidth=1.3,
+                    linewidth=0.8,
                 )
             first = False
         if mean_points_x:
@@ -1396,8 +1424,8 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
                     mean_points_x,
                     mean_points_y,
                     color=body_color,
-                    linewidth=1.5,
-                    alpha=0.95,
+                    linewidth=0.9,
+                    alpha=0.85,
                     linestyle="--",
                 )
 
@@ -1406,8 +1434,6 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
     draw_summary(summary_table("osm_rate"),
                  axes_by_source["osm"], "#b2182b", "OSM rate")
 
-    pretty_pollutant = pollutant.replace("_", " ").title()
-    fig.suptitle(pretty_pollutant, y=0.995)
     apply_source_panel_formatting(
         axes_by_source,
         "Economic classification",
@@ -1418,7 +1444,7 @@ def plot_pollutant_by_economic_candlestick(subset, pollutant, rate_mode, output_
         axes[-1].legend(frameon=False, loc="upper left")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
     return True
 

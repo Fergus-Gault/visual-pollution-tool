@@ -37,19 +37,19 @@ LANDUSE_COLOURS = {
 }
 
 LANDUSE_PANEL_ALPHA = {
-    "commercial": 0.06,
-    "residential": 0.10,
-    "industrial": 0.10,
-    "retail": 0.10,
-    "park/leisure/green": 0.10,
+    "commercial": 0.012,
+    "residential": 0.018,
+    "industrial": 0.018,
+    "retail": 0.018,
+    "park/leisure/green": 0.018,
 }
 
 LANDUSE_POLYGON_ALPHA = {
-    "commercial": 0.72,
-    "residential": 0.52,
-    "industrial": 0.52,
-    "retail": 0.52,
-    "park/leisure/green": 0.52,
+    "commercial": 0.58,
+    "residential": 0.44,
+    "industrial": 0.44,
+    "retail": 0.44,
+    "park/leisure/green": 0.44,
 }
 
 COMMERCIAL_VALUES = {"commercial"}
@@ -138,7 +138,7 @@ def display_label(label: str) -> str:
 def format_row_label(label: str) -> str:
     formatted = display_label(label)
     custom_breaks = {
-        "mobile advertisement": "mobile\nadvertise\nment",
+        "mobile advertisement": "mobile\nadvertisement",
         "utility pole": "utility\npole",
         "road sign": "road\nsign",
         "shop sign": "shop\nsign",
@@ -363,7 +363,7 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
         nrows=nrows,
         ncols=ncols,
         figsize=(figscale * ncols, figscale * row_height_scale * nrows),
-        dpi=200,
+        dpi=300,
         squeeze=False,
     )
 
@@ -395,7 +395,7 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                     ax=ax,
                     color=LANDUSE_COLOURS.get(landuse, "#6b7280"),
                     edgecolor=LANDUSE_COLOURS.get(landuse, "#6b7280"),
-                    linewidth=1.0 if landuse == "commercial" else 0.75,
+                    linewidth=1.25 if landuse == "commercial" else 1.0,
                     alpha=LANDUSE_POLYGON_ALPHA.get(landuse, 0.52),
                 )
 
@@ -442,7 +442,7 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                 transform=ax.transAxes,
                 ha="left",
                 va="top",
-                fontsize=11.1,
+                fontsize=13.5,
                 family="monospace",
                 color="#111827",
                 bbox={
@@ -468,7 +468,7 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                 header_image_count = int(image_count_by_landuse.get(landuse, 0))
                 ax.set_title(
                     f"{display_label(landuse)}\nImages: {header_image_count}",
-                    fontsize=12.5,
+                    fontsize=14.0,
                     pad=4,
                     fontweight="semibold",
                     bbox={
@@ -481,10 +481,10 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
             if col_index == 0:
                 ax.set_ylabel(
                     format_row_label(label),
-                    fontsize=13.5,
-                    labelpad=4,
-                    rotation=0,
-                    ha="right",
+                    fontsize=17.0,
+                    labelpad=12,
+                    rotation=90,
+                    ha="center",
                     va="center",
                     fontweight="semibold",
                 )

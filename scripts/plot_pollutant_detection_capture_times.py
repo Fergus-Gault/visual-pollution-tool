@@ -15,6 +15,11 @@ from src.config import DatabaseConfig  # noqa: E402
 
 
 DEFAULT_COLUMNS = 3
+PLOT_DPI = 600
+BAND_LABEL_FONT_SIZE = 10
+AXIS_LABEL_FONT_SIZE = 13
+TICK_FONT_SIZE = 11
+ANNOTATION_FONT_SIZE = 10
 
 
 def parse_args():
@@ -125,7 +130,7 @@ def add_time_of_day_bands(ax, show_labels=False):
                 transform=ax.get_xaxis_transform(),
                 ha="center",
                 va="top",
-                fontsize=7.5,
+                fontsize=BAND_LABEL_FONT_SIZE,
                 color="#374151",
             )
 
@@ -258,7 +263,7 @@ def load_hourly_label_rates(database_url, timezone, city=None, country=None, lab
 
 def plot_label_panel(ax, subset, label, show_band_labels=False):
     x = subset["capture_hour"]
-    add_time_of_day_bands(ax, show_labels=show_band_labels)
+    add_time_of_day_bands(ax, show_labels=False)
     ax.bar(
         x,
         subset["images_with_label"],
@@ -278,30 +283,17 @@ def plot_label_panel(ax, subset, label, show_band_labels=False):
         label="Image detection rate",
     )
 
-    ax.set_title(label.replace("_", " ").title())
+    ax.set_title(label.replace("_", " ").title(), fontsize=AXIS_LABEL_FONT_SIZE, fontweight="bold")
     ax.set_xlim(-0.5, 23.5)
     ax.set_xticks(range(0, 24, 2))
+    ax.tick_params(axis="both", labelsize=TICK_FONT_SIZE)
     ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.65)
     ax.set_axisbelow(True)
-    ax.set_ylabel("Images with label")
-    rate_ax.set_ylabel("Rate")
+    ax.set_ylabel("Images with label", fontsize=AXIS_LABEL_FONT_SIZE)
+    rate_ax.set_ylabel("Detection Rate", fontsize=AXIS_LABEL_FONT_SIZE)
+    rate_ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     rate_ax.set_ylim(0, max(0.01, min(1.0, subset["image_detection_rate"].max() * 1.15)))
 
-    summary = (
-        f"images={int(subset['total_images'].sum())} | "
-        f"label images={int(subset['images_with_label'].sum())} | "
-        f"mean rate={subset['image_detection_rate'].mean():.3f}"
-    )
-    ax.text(
-        0.99,
-        0.03,
-        summary,
-        transform=ax.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=7.5,
-        color="#374151",
-    )
     return rate_ax
 
 
@@ -316,7 +308,7 @@ def plot_combined(summary, output_path, title_suffix, timezone, columns):
         rows,
         columns,
         figsize=(5.6 * columns, 3.8 * rows),
-        dpi=180,
+        dpi=PLOT_DPI,
         sharex=True,
     )
     axes = np.atleast_1d(axes).reshape(rows, columns)
@@ -333,17 +325,9 @@ def plot_combined(summary, output_path, title_suffix, timezone, columns):
         column = index % columns
         axes[row, column].set_visible(False)
 
-    for ax in axes[-1]:
-        if ax.get_visible():
-            ax.set_xlabel(f"Local capture hour ({timezone})")
-
-    fig.suptitle(
-        f"Image Detection Rates by Pollutant and Capture Time{title_suffix}",
-        y=0.995,
-    )
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path)
+    fig.savefig(output_path, dpi=PLOT_DPI)
     plt.close(fig)
 
 
@@ -351,11 +335,10 @@ def plot_per_label(summary, output_dir, timezone):
     output_dir.mkdir(parents=True, exist_ok=True)
     for label in sorted(summary["detection_label"].unique()):
         subset = summary[summary["detection_label"] == label].copy()
-        fig, ax = plt.subplots(figsize=(10.5, 5.2), dpi=180)
+        fig, ax = plt.subplots(figsize=(10.5, 5.2), dpi=PLOT_DPI)
         plot_label_panel(ax, subset, label, show_band_labels=True)
-        ax.set_xlabel(f"Local capture hour ({timezone})")
         fig.tight_layout()
-        fig.savefig(output_dir / f"{slugify(label)}.png")
+        fig.savefig(output_dir / f"{slugify(label)}.png", dpi=PLOT_DPI)
         plt.close(fig)
 
 

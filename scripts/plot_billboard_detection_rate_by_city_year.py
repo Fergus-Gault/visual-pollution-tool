@@ -292,7 +292,7 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int):
         nrows,
         ncols,
         figsize=(5.2 * ncols, 3.4 * nrows),
-        dpi=180,
+        dpi=600,
         sharex=True,
         sharey=True,
     )
@@ -315,14 +315,15 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int):
             marker="o",
             markersize=4.5,
         )
-        ax.set_title(city, fontsize=11, fontweight="bold")
+        ax.set_title(city, fontsize=13, fontweight="bold")
         ax.set_xticks(years)
-        ax.tick_params(axis="x", labelbottom=True, length=3, labelsize=8)
+        ax.tick_params(axis="both", labelsize=10)
+        ax.tick_params(axis="x", labelbottom=True, length=3)
         ax.set_ylim(0, y_limit)
         ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.7)
 
         city_ascii = str(city_data["city_ascii"].dropna().iloc[0]).strip() if "city_ascii" in city_data.columns and not city_data["city_ascii"].dropna().empty else ""
-        regulation_year, split_label = get_city_split_year(city, city_ascii)
+        regulation_year, _ = get_city_split_year(city, city_ascii)
         if regulation_year is not None:
             ax.axvline(
                 regulation_year,
@@ -331,27 +332,17 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int):
                 linewidth=1.4,
                 alpha=0.85,
             )
-            ax.text(
-                regulation_year + 0.05,
-                y_limit * 0.96,
-                split_label,
-                rotation=90,
-                ha="left",
-                va="top",
-                fontsize=7,
-                color="#1d4ed8",
-            )
 
         total_images = int(city_data["image_count"].sum())
         total_detections = int(city_data["billboard_detection_count"].sum())
         ax.text(
             0.98,
             0.96,
-            f"images={total_images} | detections={total_detections}",
+            f"Images = {total_images:,}\nDetections = {total_detections:,}",
             transform=ax.transAxes,
             ha="right",
             va="top",
-            fontsize=8,
+            fontsize=12,
             color="#4b5563",
         )
 
@@ -362,9 +353,8 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int):
         if ax.has_data():
             ax.set_ylabel("")
 
-    fig.supylabel("Billboard detection density", fontsize=11)
     fig.tight_layout(rect=[0, 0, 1, 0.98])
-    fig.savefig(output_path, bbox_inches="tight")
+    fig.savefig(output_path, bbox_inches="tight", dpi=600)
     plt.close(fig)
 
 
@@ -444,7 +434,7 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int, regulatio
         nrows,
         ncols,
         figsize=(5.2 * ncols, 3.4 * nrows),
-        dpi=180,
+        dpi=600,
         sharex=True,
         sharey=True,
     )
@@ -467,14 +457,15 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int, regulatio
             marker="o",
             markersize=4.5,
         )
-        ax.set_title(city, fontsize=11, fontweight="bold")
+        ax.set_title(city, fontsize=13, fontweight="bold")
         ax.set_xticks(years)
-        ax.tick_params(axis="x", labelbottom=True, length=3, labelsize=8)
+        ax.tick_params(axis="both", labelsize=10)
+        ax.tick_params(axis="x", labelbottom=True, length=3)
         ax.set_ylim(0, y_limit)
         ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.7)
 
         city_ascii = str(city_data["city_ascii"].dropna().iloc[0]).strip() if "city_ascii" in city_data.columns and not city_data["city_ascii"].dropna().empty else ""
-        regulation_year, split_label = get_city_split_year(city, city_ascii)
+        regulation_year, _ = get_city_split_year(city, city_ascii)
         if regulation_year is not None:
             ax.axvline(
                 regulation_year,
@@ -483,40 +474,30 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int, regulatio
                 linewidth=1.4,
                 alpha=0.85,
             )
-            ax.text(
-                regulation_year + 0.05,
-                y_limit * 0.96,
-                split_label,
-                rotation=90,
-                ha="left",
-                va="top",
-                fontsize=7,
-                color="#1d4ed8",
-            )
 
             before_row = regulation_lookup.get((city, "before"))
             after_row = regulation_lookup.get((city, "after_or_equal"))
             if before_row is not None:
                 ax.text(
                     0.02,
-                    0.90,
+                    0.82,
                     f"Before: {before_row.billboards_per_image:.3f}",
                     transform=ax.transAxes,
                     ha="left",
                     va="top",
-                    fontsize=9,
+                    fontsize=12,
                     color="#7c2d12",
                     bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none", "pad": 1.5},
                 )
             if after_row is not None:
                 ax.text(
                     0.98,
-                    0.90,
+                    0.82,
                     f"After: {after_row.billboards_per_image:.3f}",
                     transform=ax.transAxes,
                     ha="right",
                     va="top",
-                    fontsize=9,
+                    fontsize=12,
                     color="#7c2d12",
                     bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none", "pad": 1.5},
                 )
@@ -526,11 +507,11 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int, regulatio
         ax.text(
             0.98,
             0.96,
-            f"images={total_images} | detections={total_detections}",
+            f"Images = {total_images:,}\nDetections = {total_detections:,}",
             transform=ax.transAxes,
             ha="right",
             va="top",
-            fontsize=9,
+            fontsize=12,
             color="#4b5563",
         )
 
@@ -541,9 +522,8 @@ def plot_city_rates(summary, output_path: Path, label: str, cols: int, regulatio
         if ax.has_data():
             ax.set_ylabel("")
 
-    fig.supylabel("Billboard detection density", fontsize=11)
     fig.tight_layout()
-    fig.savefig(output_path, bbox_inches="tight")
+    fig.savefig(output_path, bbox_inches="tight", dpi=600)
     plt.close(fig)
 
 
@@ -573,13 +553,14 @@ def main():
     print(f"Total {args.label} detections across matched rows: {total_billboards}")
     if not regulation_summary.empty:
         print("Regulation summary:")
+        label_title = args.label.replace("_", " ").title()
         for row in regulation_summary.itertuples(index=False):
             city_label = row.city_ascii or row.city
             print(
-                f"{city_label} | regulation_year={row.regulation_year} | period={row.period} "
-                f"| years={row.year_count} | images={row.image_count} "
-                f"| {args.label}_detections={row.billboard_detection_count} "
-                f"| rate={row.billboards_per_image:.6f}"
+                f"{city_label} | Regulation year = {row.regulation_year} | Period = {row.period} "
+                f"| Years = {row.year_count} | Images = {row.image_count} "
+                f"| {label_title} detections = {row.billboard_detection_count} "
+                f"| Rate = {row.billboards_per_image:.6f}"
             )
 
 

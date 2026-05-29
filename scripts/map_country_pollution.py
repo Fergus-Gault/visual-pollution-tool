@@ -20,6 +20,9 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.config import Config, ScoreConfig  # noqa: E402
 from src.database import DatabaseManager, Detection, Image  # noqa: E402
 
+ZERO_IMAGES_COLOR = "#eadcff"
+MAP_OUTPUT_DPI = 400
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -483,10 +486,7 @@ def build_focus_region_geodataframe(rows, boundary_gdf):
 
 
 def build_plotted_region_geodataframe(rows, boundary_gdf):
-    plotted_rows = [row for row in rows if int(row["images"]) > 0]
-    if not plotted_rows:
-        plotted_rows = rows
-    return build_region_geodataframe(plotted_rows, boundary_gdf)
+    return build_region_geodataframe(rows, boundary_gdf)
 
 
 def build_major_city_geodataframe(major_cities, boundary_gdf):
@@ -549,7 +549,7 @@ def build_score_style(rows, colour_mode, colour_bands):
     plot_color_by_region_id = {}
     legend_patches = []
 
-    zero_images_color = "#d9d9d9"
+    zero_images_color = ZERO_IMAGES_COLOR
     zero_detections_color = "#8B8989"
     positive_zero_score_color = "#81b5e6"
 
@@ -704,8 +704,9 @@ def add_score_legend(fig, ax, score_style):
             pad=0.012,
         )
         colorbar.set_label("Pollution score")
-        colorbar.ax.yaxis.label.set_size(15)
+        colorbar.ax.yaxis.label.set_size(17)
         colorbar.ax.yaxis.label.set_weight("bold")
+        colorbar.ax.tick_params(labelsize=13)
         return
 
     legend = ax.legend(
@@ -720,10 +721,10 @@ def add_score_legend(fig, ax, score_style):
         handleheight=1.2,
         columnspacing=1.2,
         ncol=1,
-        fontsize=12.5,
+        fontsize=14,
     )
     legend._legend_box.align = "left"
-    legend.get_title().set_fontsize(14)
+    legend.get_title().set_fontsize(16)
     legend.get_title().set_fontweight("bold")
     legend.get_frame().set_facecolor("white")
     legend.get_frame().set_alpha(0.9)
@@ -761,10 +762,7 @@ def create_region_score_map(
     major_city_projected = major_city_gdf.to_crs(
         epsg=3857) if not major_city_gdf.empty else None
 
-    plotted_rows = [row for row in rows if int(row["images"]) > 0]
-    if not plotted_rows:
-        plotted_rows = rows
-    score_style = build_score_style(plotted_rows, colour_mode, colour_bands)
+    score_style = build_score_style(rows, colour_mode, colour_bands)
     fig_width, fig_height = get_reference_figure_size(
         country, display_boundary_projected)
     fig, ax = plt.subplots(
@@ -796,6 +794,16 @@ def create_region_score_map(
             alpha=0.96,
             zorder=2,
         )
+    zero_image_projected = region_projected[region_projected["images"].astype(int) == 0]
+    if not zero_image_projected.empty:
+        zero_image_projected.plot(
+            ax=ax,
+            color=ZERO_IMAGES_COLOR,
+            linewidth=0.15,
+            edgecolor="#ffffff",
+            alpha=0.98,
+            zorder=3,
+        )
     boundary_projected.boundary.plot(
         ax=ax, color="#ffffff", linewidth=0.8, zorder=4)
     if major_city_projected is not None and not major_city_projected.empty:
@@ -815,7 +823,7 @@ def create_region_score_map(
     add_score_legend(fig, ax, score_style)
 
     png_output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(png_output_path, dpi=300,
+    fig.savefig(png_output_path, dpi=MAP_OUTPUT_DPI,
                 bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -869,7 +877,7 @@ def create_heatmap(country, heatmap_points, png_output_path):
     colorbar.set_label("Weighted detections")
 
     png_output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(png_output_path, dpi=300,
+    fig.savefig(png_output_path, dpi=MAP_OUTPUT_DPI,
                 bbox_inches="tight", facecolor="white")
     plt.close(fig)
 

@@ -1,16 +1,17 @@
+import argparse
 import sys
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+from PIL import Image as PILImage
 from plotly.subplots import make_subplots
 from sqlalchemy import func
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from src.database.database import DatabaseManager
 from src.database.models import Image, Region
-
+from src.database.database import DatabaseManager
 
 BINS = [0, 5, 10, 25, 50, 100, 250, 1000]
 CATEGORY_LABELS = [
@@ -33,6 +34,33 @@ CATEGORY_COLORS = [
     "#1d4ed8",
     "#172554",
 ]
+FIGURE_WIDTH = 1800
+FIGURE_HEIGHT = 660
+BASE_DPI = 96
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog="MapDataset",
+        description="Create dataset coverage maps as HTML and a static image.",
+    )
+    parser.add_argument(
+        "--html-output",
+        default="./maps/city_dataset_vs_300_images_map.html",
+        help="Path for the interactive HTML map.",
+    )
+    parser.add_argument(
+        "--image-output",
+        default="./maps/city_dataset_vs_300_images_map.png",
+        help="Path for the static map image.",
+    )
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=600,
+        help="Effective DPI for the static image export.",
+    )
+    return parser.parse_args()
 
 
 def build_step_colorscale(colors):
@@ -64,7 +92,8 @@ def categorize_country_counts(counts):
     category_code_lookup = {
         label: index for index, label in enumerate(CATEGORY_LABELS)
     }
-    counts["category_code"] = counts["category"].map(category_code_lookup).astype(int)
+    counts["category_code"] = counts["category"].map(
+        category_code_lookup).astype(int)
     return counts
 
 
@@ -200,6 +229,10 @@ def add_manual_legend(fig):
 
 
 def main():
+    args = parse_args()
+    if args.dpi <= 0:
+        raise SystemExit("--dpi must be greater than 0.")
+
     db = DatabaseManager()
     dataset_counts = load_dataset_counts(db)
     cities_300_counts = load_cities_300_image_counts(db)
@@ -215,8 +248,8 @@ def main():
     fig.add_trace(build_trace(cities_300_counts, "coloraxis"), row=1, col=2)
 
     fig.update_layout(
-        width=1800,
-        height=660,
+        width=FIGURE_WIDTH,
+        height=FIGURE_HEIGHT,
         margin=dict(l=0, r=40, t=36, b=95),
         coloraxis=dict(
             cmin=-0.5,
@@ -235,7 +268,21 @@ def main():
     add_manual_legend(fig)
 
     fig.show()
-    fig.write_html("./maps/city_dataset_vs_300_images_map.html")
+
+    html_output_path = Path(args.html_output)
+    image_output_path = Path(args.image_output)
+    html_output_path.parent.mkdir(parents=True, exist_ok=True)
+    image_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig.write_html(html_output_path)
+    fig.write_image(
+        image_output_path,
+        width=FIGURE_WIDTH,
+        height=FIGURE_HEIGHT,
+        scale=args.dpi / BASE_DPI,
+    )
+    with PILImage.open(image_output_path) as image:
+        image.save(image_output_path, dpi=(args.dpi, args.dpi))
 
 
 if __name__ == "__main__":

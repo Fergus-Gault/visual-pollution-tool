@@ -15,6 +15,21 @@ logger = setup_logger(__name__)
 
 
 class WorldScores:
+    NEUTRAL_SCORE_COLOR = "#737373"
+
+    @staticmethod
+    def zoomed_bounds(lats, lngs, zoom_factor=0.78):
+        min_lat, max_lat = min(lats), max(lats)
+        min_lng, max_lng = min(lngs), max(lngs)
+        centre_lat = (min_lat + max_lat) / 2.0
+        centre_lng = (min_lng + max_lng) / 2.0
+        half_lat = (max_lat - min_lat) * zoom_factor / 2.0
+        half_lng = (max_lng - min_lng) * zoom_factor / 2.0
+        return [
+            [centre_lat - half_lat, centre_lng - half_lng],
+            [centre_lat + half_lat, centre_lng + half_lng],
+        ]
+
     @staticmethod
     def percentile(sorted_values, fraction):
         if not sorted_values:
@@ -84,13 +99,116 @@ class WorldScores:
             vmin=min_score,
             vmax=max_score,
         )
+        colour_scale.legend_colors = colors
+        colour_scale.legend_thresholds = thresholds
+        colour_scale.legend_band_count = effective_band_count
         colour_scale.max_labels = 8
         colour_scale.text_color = "#111111"
-        colour_scale.width = 420
+        colour_scale.width = 900
+        colour_scale.height = 30
         colour_scale.caption = (
             f"Region score percentile bands ({effective_band_count} bands, green = low, red = high)"
         )
         return colour_scale
+
+    @staticmethod
+    def add_score_legend(map_object, colour_scale):
+        thresholds = getattr(colour_scale, "legend_thresholds", [])
+        colors = getattr(colour_scale, "legend_colors", [])
+        band_count = getattr(colour_scale, "legend_band_count", len(colors))
+        if not thresholds or not colors:
+            return
+
+        gradient_stops = []
+        for index, color in enumerate(colors):
+            start = (index / len(colors)) * 100.0
+            end = ((index + 1) / len(colors)) * 100.0
+            gradient_stops.append(f"{color} {start:.2f}%")
+            gradient_stops.append(f"{color} {end:.2f}%")
+        gradient = ", ".join(gradient_stops)
+        tick_indices = sorted(
+            set(
+                [
+                    0,
+                    len(thresholds) - 1,
+                    len(thresholds) // 4,
+                    len(thresholds) // 2,
+                    (len(thresholds) * 3) // 4,
+                ]
+            )
+        )
+        ticks_html = "".join(
+            f'<span>{float(thresholds[index]):.2f}</span>'
+            for index in tick_indices
+        )
+        legend_html = f"""
+        <div style="
+            position: fixed;
+            top: 18px;
+            right: 22px;
+            z-index: 9999;
+            width: 720px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 2px solid #4b5563;
+            padding: 10px 12px 9px 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+            color: #111111;
+            font-family: Arial, sans-serif;
+        ">
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                font-size: 24px;
+                font-weight: 700;
+                line-height: 1;
+                margin-bottom: 5px;
+            ">{ticks_html}</div>
+            <div style="
+                height: 30px;
+                border: 1px solid #111111;
+                background: linear-gradient(to right, {gradient});
+            "></div>
+            <div style="
+                margin-top: 6px;
+                font-size: 23px;
+                font-weight: 700;
+                line-height: 1.15;
+                text-align: center;
+            ">Region score percentile bands ({band_count} bands, green = low, red = high)</div>
+        </div>
+        """
+        map_object.get_root().html.add_child(folium.Element(legend_html))
+
+    @staticmethod
+    def add_neutral_score_legend(map_object):
+        legend_html = f"""
+        <div style="
+            position: fixed;
+            top: 122px;
+            right: 22px;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.96);
+            border: 2px solid #4b5563;
+            padding: 8px 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+            color: #111111;
+            font-family: Arial, sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+        ">
+            <span style="
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                margin-right: 8px;
+                border-radius: 50%;
+                background: {WorldScores.NEUTRAL_SCORE_COLOR};
+                vertical-align: -1px;
+            "></span>
+            No or zero score
+        </div>
+        """
+        map_object.get_root().html.add_child(folium.Element(legend_html))
 
     @staticmethod
     def normalize_place_name(value):
@@ -146,13 +264,13 @@ class WorldScores:
         return max(lat_height_km * max(lng_width_km, 0.0), 0.0)
 
     @staticmethod
-    def map_world_scores_scaled_by_value(db: DatabaseManager, min_radius=1.0, max_radius=5.8):
+    def map_world_scores_scaled_by_value(db: DatabaseManager, min_radius=3.2, max_radius=13.5):
         all_regions = db.get_all_regions()
         coords = []
         ghs_density_by_city_country, ghs_density_by_city = WorldScores.load_ghs_density_lookup()
 
-        m = folium.Map(location=[20, 0],
-                       zoom_start=2,
+        m = folium.Map(location=[18, 15],
+                       zoom_start=4,
                        tiles=MapConfig.get_tiles_url(),
                        attr=MapConfig.get_tiles_attr(),
                        prefer_canvas=True)
@@ -163,13 +281,12 @@ class WorldScores:
             if region.score is not None and float(region.score) > 0.0
         ]
         if not scores:
-            folium.LayerControl().add_to(m)
-            return m
+            colour_scale = None
+        else:
+            colour_scale = WorldScores.build_score_scale(scores)
 
-        colour_scale = WorldScores.build_score_scale(scores)
-
-        min_score = min(scores)
-        max_score = max(scores)
+        min_score = min(scores) if scores else 0.0
+        max_score = max(scores) if scores else 1.0
         score_range = max_score - min_score
         density_by_region = {}
         densities = []
@@ -219,9 +336,7 @@ class WorldScores:
             density_range = density_ceiling - density_floor
 
         for region in all_regions:
-            score = float(region.score) if region.score is not None else 0.0
-            if score <= 0.0:
-                continue
+            score = float(region.score) if region.score is not None else None
 
             bbox = BoundingBox(region.min_lng, region.min_lat,
                                region.max_lng, region.max_lat)
@@ -239,41 +354,44 @@ class WorldScores:
                 radius = min_radius + (norm_radius * (max_radius - min_radius))
             elif density_range == 0 and densities:
                 radius = (min_radius + max_radius) / 2.0
-            elif score_range > 0:
+            elif score is not None and score_range > 0:
                 norm = (score - min_score) / score_range
                 radius = min_radius + (norm * (max_radius - min_radius))
             else:
                 radius = min_radius
 
-            if score_range > 0:
-                norm = (score - min_score) / score_range
-            else:
-                norm = 0
+            has_positive_score = score is not None and score > 0.0
+            colour = colour_scale(score) if has_positive_score and colour_scale is not None else WorldScores.NEUTRAL_SCORE_COLOR
+            score_text = f"{score:.4f}" if score is not None else "NA"
 
-            colour = colour_scale(score)
+            marker_kwargs = {
+                "location": [lat, lng],
+                "radius": radius,
+                "color": colour,
+                "fill": True,
+                "fillColor": colour,
+                "fillOpacity": 0.55,
+                "weight": 1,
+                "opacity": 0.65,
+            }
+            if score is not None:
+                marker_kwargs["tooltip"] = (
+                    f"{region.city or 'Unknown'} | "
+                    f"score={score_text} | "
+                    f"density={density_by_region.get(region.id, 0.0):.1f}"
+                )
+            folium.CircleMarker(**marker_kwargs).add_to(m)
 
-            folium.CircleMarker(location=[lat, lng],
-                                radius=radius,
-                                color=colour,
-                                fill=True,
-                                fillColor=colour,
-                                fillOpacity=0.55,
-                                weight=1,
-                                opacity=0.65,
-                                tooltip=(
-                                    f"{region.city or 'Unknown'} | "
-                                    f"score={score:.4f} | "
-                                    f"density={density_by_region.get(region.id, 0.0):.1f}"
-            ),
-            ).add_to(m)
-
+        if colour_scale is not None:
+            WorldScores.add_score_legend(m, colour_scale)
+        WorldScores.add_neutral_score_legend(m)
         if coords:
             lats = [coord[0] for coord in coords]
             lngs = [coord[1] for coord in coords]
-            m.fit_bounds([[min(lats), min(lngs)], [max(lats), max(lngs)]],
-                         padding=(20, 20), max_zoom=6)
-
-        m.add_child(colour_scale)
-
+            m.fit_bounds(
+                WorldScores.zoomed_bounds(lats, lngs),
+                padding=(2, 2),
+                max_zoom=5,
+            )
         folium.LayerControl().add_to(m)
         return m
