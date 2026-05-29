@@ -28,7 +28,7 @@ At a high level, the workflow is:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Fergus-Gault/visual-pollution-tool.git
+git clone https://github.com/...
 cd visual-pollution-tool
 ```
 
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 The project reads configuration from `auth/.env` by default. Create that file and add the values you need:
 
 ```env
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<database>
+DATABASE_URL=<your_postgresql_connection_string>
 MAPILLARY_ACCESS_TOKEN=<your_mapillary_token>
 KARTAVIEW_ACCESS_TOKEN=<optional_kartaview_token>
 LABEL_STUDIO_API_KEY=<your_label_studio_api_key>
@@ -74,51 +74,7 @@ Notes:
 - `LABEL_STUDIO_API_KEY` is needed for `label.py` and `create_dataset.py`.
 - `STADIA_MAPS_API` is optional. If it is not provided, the mapping code falls back to OpenStreetMap tiles.
 
-### 5. Restore a `database.dump` into PostgreSQL
-
-If you have been given a `database.dump` file, you can restore it into a local PostgreSQL database before running the project.
-
-Create the target database first:
-
-```bash
-createdb visual_pollution
-```
-
-Then restore the dump:
-
-```bash
-pg_restore -d visual_pollution path/to/database.dump
-```
-
-If your PostgreSQL setup requires an explicit user or host, use:
-
-```bash
-createdb -U postgres -h localhost visual_pollution
-pg_restore -U postgres -h localhost -d visual_pollution path/to/database.dump
-```
-
-Set `DATABASE_URL` in `auth/.env` to point at that database:
-
-```env
-DATABASE_URL=postgresql://postgres:<password>@localhost:5432/visual_pollution
-```
-
-URL structure:
-
-- `postgresql://` is the driver prefix
-- `<user>` is your PostgreSQL username
-- `<password>` is your PostgreSQL password
-- `<host>` is usually `localhost` for a local database
-- `<port>` is usually `5432`
-- `<database>` is the database name you restored into, for example `visual_pollution`
-
-Example with no custom host or port:
-
-```env
-DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/visual_pollution
-```
-
-### 6. Start supporting services when needed
+### 5. Start supporting services when needed
 
 Some workflows depend on external services:
 
@@ -148,7 +104,7 @@ python collect.py <file_or_city> [options]
 Examples:
 
 ```bash
-python collect.py edinburgh --country uk
+python collect.py London --country uk
 python collect.py cities.txt
 ```
 
@@ -203,24 +159,6 @@ Useful options:
 
 Use this when you want country-wide coverage rather than city-by-city collection.
 
-#### `show_country_regions.py`
-
-Previews the exact connected subregions that would be created for a country, without collecting imagery or writing to the database.
-
-```bash
-python show_country_regions.py Japan
-python show_country_regions.py "United Kingdom" --subregions 1000
-python show_country_regions.py "United Kingdom" --subregions 10000 --land-filter center
-python show_country_regions.py Indonesia --region-mode uniform
-```
-
-Outputs:
-
-- an HTML preview map under `maps/country_previews/`
-- a CSV of the generated bounding boxes under `data/country_previews/`
-
-Use this when you want to inspect the country-wide grid before running `collect_country.py`.
-
 ### Annotation and dataset creation
 
 #### `label.py`
@@ -261,7 +199,7 @@ Runs inference on all regions or a filtered city/country selection, then writes 
 
 ```bash
 python run_inference.py
-python run_inference.py --city Edinburgh --country UK
+python run_inference.py --city London --country UK
 ```
 
 Use this after collection or after training a new model.
@@ -297,7 +235,7 @@ Computes region-level scores from detections, OSM features, or a weighted combin
 ```bash
 python score_regions.py --method vpi
 python score_regions.py --method osm
-python score_regions.py --method vpi_osm --city Edinburgh --country UK
+python score_regions.py --method vpi_osm --city London --country UK
 python score_regions.py --method osm --update-db
 python score_regions.py --compare-vpi-osm
 python score_regions.py --compare-vpi-osm --exclude-zero-comparisons
@@ -323,8 +261,8 @@ The map writes to `./maps/world_score_differences.html` and `./maps/world_score_
 ### Collect data for a city and run inference
 
 ```bash
-python collect.py edinburgh --country uk --fetch-osm
-python run_inference.py --city Edinburgh --country UK
+python collect.py london --country uk --fetch-osm
+python run_inference.py --city London --country UK
 ```
 
 ### Label data and export annotations
@@ -363,7 +301,3 @@ Depending on the script, outputs are typically written to:
 - `./data/datasets/` for any YOLO-style training configs and prepared training assets you maintain separately
 - `./data/model/` for trained model checkpoints
 - `./data/` for generated scores and other exported artifacts
-
-## Project Status
-
-This project has been completed as part of a dissertation. Small updates may be made for maintenance or to fix issues, but no major new features are planned. The code is provided as-is for research and experimentation purposes.
