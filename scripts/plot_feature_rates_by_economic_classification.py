@@ -348,7 +348,7 @@ def draw_category_panel(ax, subset, category, colour, median_colour, show_xlabel
         )
 
     ax.set_title(category)
-    ax.set_xlabel("Economic classification" if show_xlabel else "")
+    ax.set_xlabel("" if show_xlabel else "")
     ax.set_ylabel("Rate within region")
     ax.set_xticks(range(len(income_order)))
     ax.set_xticklabels(income_order, rotation=25, ha="right")
@@ -356,27 +356,9 @@ def draw_category_panel(ax, subset, category, colour, median_colour, show_xlabel
     ax.grid(True, axis="y", color="#d1d5db", linewidth=0.7, alpha=0.7)
     ax.grid(False, axis="x")
 
-    summary = (
-        f"regions={subset['region_id'].nunique()} | "
-        f"points={len(subset)} | "
-        f"median={subset['rate'].median():.3f}"
-    )
-    ax.text(
-        0.99,
-        0.02,
-        summary,
-        transform=ax.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=8.5,
-        color="#374151",
-    )
-
-
 def plot_single_category(subset, category, output_path, title, colour, median_colour):
     fig, ax = plt.subplots(figsize=(7.2, 5.2), dpi=180)
     draw_category_panel(ax, subset, category, colour, median_colour)
-    fig.suptitle(title, y=0.995)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path)
@@ -419,7 +401,6 @@ def plot_combined_categories(data, source_key, output_path, subplot_columns):
         column = index % columns
         axes[row][column].set_visible(False)
 
-    fig.suptitle(config["title"], y=0.995)
     fig.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path)

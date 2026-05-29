@@ -311,7 +311,7 @@ def make_label_map(region, dissolved_polygons, label, label_density_df):
     m = folium.Map(location=[centre[1], centre[0]],
                    zoom_start=MapConfig.ZOOM_START,
                    tiles=MapConfig.get_tiles_url(),
-                   attr=MapConfig.TILES_ATTR)
+                   attr=MapConfig.get_tiles_attr())
 
     for poly in dissolved_polygons.itertuples(index=False):
         landuse = poly.landuse_class

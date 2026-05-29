@@ -1,5 +1,4 @@
 *.code-workspace
-auth/
 *.env
 __pycache__/
 .vscode/

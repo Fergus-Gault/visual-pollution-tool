@@ -64,9 +64,6 @@ MAPILLARY_ACCESS_TOKEN=<your_mapillary_token>
 KARTAVIEW_ACCESS_TOKEN=<optional_kartaview_token>
 LABEL_STUDIO_API_KEY=<your_label_studio_api_key>
 STADIA_MAPS_API=<optional_stadia_maps_key>
-EXTRA_TOKEN_1=<optional_extra_mapillary_token>
-EXTRA_TOKEN_2=<optional_extra_mapillary_token>
-EXTRA_TOKEN_3=<optional_extra_mapillary_token>
 ```
 
 Notes:
@@ -76,7 +73,6 @@ Notes:
 - `KARTAVIEW_ACCESS_TOKEN` is optional. It is only needed if you want authenticated KartaView requests.
 - `LABEL_STUDIO_API_KEY` is needed for `label.py` and `create_dataset.py`.
 - `STADIA_MAPS_API` is optional. If it is not provided, the mapping code falls back to OpenStreetMap tiles.
-- `EXTRA_TOKEN_1` to `EXTRA_TOKEN_3` are optional helper tokens for higher-throughput multi-process collection.
 
 ### 5. Restore a `database.dump` into PostgreSQL
 

@@ -29,11 +29,27 @@ LANDUSE_ORDER = [
 ]
 
 LANDUSE_COLOURS = {
-    "commercial": "#1f78b4",
-    "residential": "#33a02c",
-    "industrial": "#ff7f00",
+    "commercial": "#f59e0b",
+    "residential": "#facc15",
+    "industrial": "#9333ea",
     "retail": "#e31a1c",
-    "park/leisure/green": "#2ca25f",
+    "park/leisure/green": "#16a34a",
+}
+
+LANDUSE_PANEL_ALPHA = {
+    "commercial": 0.06,
+    "residential": 0.10,
+    "industrial": 0.10,
+    "retail": 0.10,
+    "park/leisure/green": 0.10,
+}
+
+LANDUSE_POLYGON_ALPHA = {
+    "commercial": 0.72,
+    "residential": 0.52,
+    "industrial": 0.52,
+    "retail": 0.52,
+    "park/leisure/green": 0.52,
 }
 
 COMMERCIAL_VALUES = {"commercial"}
@@ -117,6 +133,26 @@ def normalize_label(label: Optional[str]) -> str:
 
 def display_label(label: str) -> str:
     return label.replace("_", " ")
+
+
+def format_row_label(label: str) -> str:
+    formatted = display_label(label)
+    custom_breaks = {
+        "mobile advertisement": "mobile\nadvertise\nment",
+        "utility pole": "utility\npole",
+        "road sign": "road\nsign",
+        "shop sign": "shop\nsign",
+    }
+    if formatted in custom_breaks:
+        return custom_breaks[formatted]
+    return "\n".join(
+        textwrap.wrap(
+            formatted,
+            width=7,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+    )
 
 
 def display_region_title(city: str, country: Optional[str]) -> str:
@@ -348,11 +384,10 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
         .max()
         .to_dict()
     )
-
     for row_index, label in enumerate(labels):
         for col_index, landuse in enumerate(LANDUSE_ORDER):
             ax = axes[row_index][col_index]
-            ax.set_facecolor("#fbfbfb")
+            ax.set_facecolor("#f8fafc")
 
             selected_polygons = dissolved_polygons[dissolved_polygons["landuse_class"] == landuse]
             if not selected_polygons.empty:
@@ -360,8 +395,8 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                     ax=ax,
                     color=LANDUSE_COLOURS.get(landuse, "#6b7280"),
                     edgecolor=LANDUSE_COLOURS.get(landuse, "#6b7280"),
-                    linewidth=0.75,
-                    alpha=0.52,
+                    linewidth=1.0 if landuse == "commercial" else 0.75,
+                    alpha=LANDUSE_POLYGON_ALPHA.get(landuse, 0.52),
                 )
 
             selected_points = detection_points_gdf[
@@ -383,9 +418,22 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                 (0, 0, None),
             )
             density_text = "NA" if pd.isna(density) else f"{density:.2f}"
+            panel_colour = LANDUSE_COLOURS.get(landuse, "#6b7280")
+            ax.add_patch(
+                plt.Rectangle(
+                    (xmin - xpad, ymin - ypad),
+                    (xmax - xmin) + (2 * xpad),
+                    (ymax - ymin) + (2 * ypad),
+                    facecolor=panel_colour,
+                    edgecolor="none",
+                    alpha=LANDUSE_PANEL_ALPHA.get(landuse, 0.10),
+                    zorder=0,
+                )
+            )
+
             stat_lines = [
                 f"Detections: {detection_count}",
-                f"Detection density: {density_text}/image",
+                f"Density: {density_text}",
             ]
             ax.text(
                 0.02,
@@ -394,62 +442,58 @@ def save_grid_map(region, dissolved_polygons, detection_points_gdf, density_df, 
                 transform=ax.transAxes,
                 ha="left",
                 va="top",
-                fontsize=10.2,
+                fontsize=11.1,
                 family="monospace",
                 color="#111827",
                 bbox={
                     "facecolor": "white",
-                    "alpha": 0.94,
-                    "edgecolor": "#9ca3af",
-                    "linewidth": 0.7,
-                    "pad": 2.0,
+                    "alpha": 0.82,
+                    "edgecolor": panel_colour,
+                    "linewidth": 0.9,
+                    "pad": 1.6,
                 },
             )
 
             ax.set_xlim(xmin - xpad, xmax + xpad)
             ax.set_ylim(ymin - ypad, ymax + ypad)
-            ax.set_aspect("equal")
+            ax.set_aspect("auto")
             ax.set_xticks([])
             ax.set_yticks([])
             for spine in ax.spines.values():
-                spine.set_color("#d1d5db")
-                spine.set_linewidth(0.7)
+                spine.set_color(panel_colour)
+                spine.set_alpha(0.55)
+                spine.set_linewidth(1.1)
 
             if row_index == 0:
                 header_image_count = int(image_count_by_landuse.get(landuse, 0))
                 ax.set_title(
                     f"{display_label(landuse)}\nImages: {header_image_count}",
                     fontsize=12.5,
-                    pad=10,
+                    pad=4,
                     fontweight="semibold",
                     bbox={
-                        "facecolor": "#f3f4f6",
-                        "edgecolor": "#e5e7eb",
-                        "boxstyle": "round,pad=0.25",
+                        "facecolor": "#ffffff",
+                        "edgecolor": panel_colour,
+                        "alpha": 0.9,
+                        "boxstyle": "square,pad=0.2",
                     },
                 )
             if col_index == 0:
                 ax.set_ylabel(
-                    "\n".join(textwrap.wrap(display_label(label), width=12)),
+                    format_row_label(label),
                     fontsize=13.5,
-                    labelpad=24,
+                    labelpad=4,
                     rotation=0,
                     ha="right",
                     va="center",
                     fontweight="semibold",
                 )
 
-    fig.suptitle(
-        f"{display_region_title(region.city, region.country)}\nPollutant Detections by Land Use",
-        fontsize=17,
-        y=0.975,
-        fontweight="semibold",
-    )
     fig.subplots_adjust(
-        left=0.14,
-        right=0.995,
-        bottom=0.04,
-        top=0.875,
+        left=0.055,
+        right=1.0,
+        bottom=0.0,
+        top=0.965,
         wspace=0.0,
         hspace=0.0,
     )

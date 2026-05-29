@@ -55,6 +55,23 @@ class Pipeline:
     def run_inference(self, region):
         self.inference_manager.run_inference(region)
 
+    def run_region_coords(self, lng, lat, city=None, country=None, iso3=None, population=None, collect_only=False, override=False, region_method="shape", dense_scan=False, fetch_osm=False, start_captured_at=None, end_captured_at=None):
+        self._run_region_coords(
+            lng=lng,
+            lat=lat,
+            city=city,
+            country=country,
+            iso3=iso3,
+            population=population,
+            collect_only=collect_only,
+            override=override,
+            region_method=region_method,
+            dense_scan=dense_scan,
+            fetch_osm=fetch_osm,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )
+
     def _run_file(self, file_path, collect_only, override, region_method, dense_scan, fetch_osm):
         with open(file_path, "r", encoding="utf-8") as file:
             reader = csv.reader(file)

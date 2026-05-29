@@ -1,10 +1,26 @@
 import argparse
 import csv
-import tempfile
-import os
 
-from src.pipeline import PipelineMP
+from src.pipeline import Pipeline
 from src.config import Config
+
+
+def normalize(value):
+    return value.strip() if isinstance(value, str) else ""
+
+
+def parse_population(row):
+    population_raw = normalize(row.get("population"))
+    return int(float(population_raw)) if population_raw else None
+
+
+def parse_coords(row):
+    try:
+        lng = float(normalize(row.get("lng")))
+        lat = float(normalize(row.get("lat")))
+    except (TypeError, ValueError):
+        return None, None
+    return lng, lat
 
 
 if __name__ == "__main__":
@@ -29,24 +45,46 @@ if __name__ == "__main__":
         Config.DEBUG = True
 
     with open(args.file, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        header = next(reader)
-        pop_idx = header.index("population")
+        reader = csv.DictReader(f)
         rows = [
             row for row in reader
-            if row[pop_idx].strip() and float(row[pop_idx].strip()) >= args.min_population
+            if parse_population(row) is not None and parse_population(row) >= args.min_population
         ]
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="") as tmp:
-        writer = csv.writer(tmp)
-        writer.writerow(header)
-        writer.writerows(rows)
-        tmp_path = tmp.name
-
-    try:
-        pipeline = PipelineMP(tmp_path, collect_only=args.collect_only, override=args.override,
-                              region_method=args.region_method, dense_scan=args.dense,
-                              fetch_osm=args.fetch_osm, image_sources=args.image_sources)
-        pipeline.start_mp()
-    finally:
-        os.unlink(tmp_path)
+    pipeline = Pipeline(image_sources=args.image_sources)
+    for row in rows:
+        city = normalize(row.get("city_ascii")) or None
+        country = normalize(row.get("country")) or None
+        iso3 = normalize(row.get("iso3")).upper() or None
+        start_captured_at = (
+            normalize(row.get("start_captured_at"))
+            or normalize(row.get("start_capture_date"))
+            or None
+        )
+        end_captured_at = (
+            normalize(row.get("end_captured_at"))
+            or normalize(row.get("end_capture_date"))
+            or None
+        )
+        population = parse_population(row)
+        lng, lat = parse_coords(row)
+        if lng is None or lat is None:
+            coords = pipeline.get_lnglat(city, country) if city and country else None
+            if coords is None:
+                continue
+            lng, lat = coords
+        pipeline.run_region_coords(
+            lng=lng,
+            lat=lat,
+            city=city,
+            country=country,
+            iso3=iso3,
+            population=population,
+            collect_only=args.collect_only,
+            override=args.override,
+            region_method=args.region_method,
+            dense_scan=args.dense,
+            fetch_osm=args.fetch_osm,
+            start_captured_at=start_captured_at,
+            end_captured_at=end_captured_at,
+        )

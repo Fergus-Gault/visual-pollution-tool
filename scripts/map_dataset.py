@@ -152,40 +152,42 @@ def build_trace(dataframe, coloraxis_name):
 
 
 def add_manual_legend(fig):
-    legend_x0 = 1.01
-    legend_x1 = 1.03
-    text_x = 1.037
-    start_y = 0.84
-    step_y = 0.075
+    start_x = 0.18
+    step_x = 0.095
+    swatch_width = 0.018
+    text_gap = 0.008
+    title_y = -0.02
+    item_y = -0.065
 
     fig.add_annotation(
-        x=legend_x0,
-        y=start_y + 0.06,
+        x=0.08,
+        y=title_y,
         xref="paper",
         yref="paper",
         text="Cities per country",
         showarrow=False,
         xanchor="left",
-        yanchor="bottom",
+        yanchor="middle",
         font=dict(size=20, color="#111827", family="Arial Black"),
     )
 
     for index, (label, color) in enumerate(zip(CATEGORY_LABELS, CATEGORY_COLORS)):
-        y_center = start_y - (index * step_y)
+        x0 = start_x + (index * step_x)
+        x1 = x0 + swatch_width
         fig.add_shape(
             type="rect",
             xref="paper",
             yref="paper",
-            x0=legend_x0,
-            x1=legend_x1,
-            y0=y_center - 0.018,
-            y1=y_center + 0.018,
+            x0=x0,
+            x1=x1,
+            y0=item_y - 0.015,
+            y1=item_y + 0.015,
             line=dict(color="#6b7280", width=0.9),
             fillcolor=color,
         )
         fig.add_annotation(
-            x=text_x,
-            y=y_center,
+            x=x1 + text_gap,
+            y=item_y,
             xref="paper",
             yref="paper",
             text=label,
@@ -215,7 +217,7 @@ def main():
     fig.update_layout(
         width=1800,
         height=660,
-        margin=dict(l=0, r=280, t=36, b=0),
+        margin=dict(l=0, r=40, t=36, b=95),
         coloraxis=dict(
             cmin=-0.5,
             cmax=len(CATEGORY_LABELS) - 0.5,

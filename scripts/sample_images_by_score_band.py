@@ -5,7 +5,7 @@ import sys
 
 from sqlalchemy import text
 
-sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.database import DatabaseManager
 

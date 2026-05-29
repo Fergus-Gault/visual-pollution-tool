@@ -232,7 +232,7 @@ def main():
             location=[centre[1], centre[0]],
             zoom_start=MapConfig.ZOOM_START,
             tiles=MapConfig.get_tiles_url(),
-            attr=MapConfig.TILES_ATTR,
+            attr=MapConfig.get_tiles_attr(),
         )
 
         add_heatmap_layers(m, detection_points, coverage_points, args.metric)
