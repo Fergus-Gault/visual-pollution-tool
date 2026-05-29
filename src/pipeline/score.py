@@ -150,11 +150,6 @@ class Scorer:
             return None
         return set(image_ids)
 
-    def _clamp_confidence(self, confidence):
-        if confidence is None:
-            return 1.0
-        return min(max(float(confidence), 0.0), 1.0)
-
     def _fetch_image_count_by_region(self, region_id_filter):
         query = (
             self.db.session.query(Image.region_id, func.count(Image.id))

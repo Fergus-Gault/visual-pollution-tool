@@ -1,6 +1,6 @@
 from src.utils import convert_ls_to_yolo, setup_logger
 from src.config import TrainConfig, PipelineConfig
-from collections import defaultdict, Counter
+from collections import Counter
 import json
 import mimetypes
 import random

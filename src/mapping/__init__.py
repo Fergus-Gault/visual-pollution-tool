@@ -8,4 +8,4 @@ from .world_scores import WorldScores
 from .world_score_differences import WorldScoreDifferences
 
 __all__ = ['Mapper', 'RegionImages', 'MapHelper',
-           'RegionDetections', 'WorldImages', 'WorldDetections', 'WorldOSM', 'WorldScores', 'WorldScoreDifferences']
+           'RegionDetections', 'WorldImages', 'WorldOSM', 'WorldScores', 'WorldScoreDifferences']

@@ -80,14 +80,6 @@ class Scanner:
         logger.info(
             f"Total {image_count} images fetched for {region.city}, {region.country}.")
 
-    def _fetch_osm_data(self, region, region_bbox):
-        logger.info("Fetching OSM data")
-        data = self.osm.fetch_region(region_bbox)
-        if data is None:
-            logger.warning("OSM did not return any data.")
-            return
-        self._store_osm_data(region, data)
-
     def rescan_osm_region(self, region):
         region_bbox = BoundingBox(
             region.min_lng,
