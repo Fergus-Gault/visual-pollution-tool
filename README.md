@@ -256,6 +256,30 @@ python scripts/world_score_difference.py --exclude-zero-scores
 
 The map writes to `./maps/world_score_differences.html` and `./maps/world_score_differences.png`, with larger red circles for larger differences and smaller green circles for smaller differences.
 
+#### `scripts/plot_image_scores_by_metadata.py`
+
+Plots individual stored image scores against image metadata fields such as altitude, computed altitude, computed rotation, and quality score.
+
+```bash
+python scripts/plot_image_scores_by_metadata.py
+python scripts/plot_image_scores_by_metadata.py --city London --country UK
+python scripts/plot_image_scores_by_metadata.py --source ""
+```
+
+By default the script reads scored Mapillary images from the database, ignores zero-score images, and plots one representative field each for altitude, quality score, angle, and rotation. It removes obvious per-metric outliers with an IQR filter before plotting, except valid quality scores between 0 and 1 are always kept. The script writes `./plots/image_scores_by_metadata.png` and exports the source rows to `./data/image_scores_by_metadata.csv`. Use `--metrics` to choose different fields, for example `--metrics computed_altitude,quality_score,compass_angle,rotation_x`; use `--outlier-filter none` to show every value.
+
+#### `scripts/plot_pollutant_shapes_and_locations.py`
+
+Plots each pollutant's detection boxes on a normalized image canvas, showing where that pollutant tends to appear in the frame and what shape its bounding boxes usually have.
+
+```bash
+python scripts/plot_pollutant_shapes_and_locations.py
+python scripts/plot_pollutant_shapes_and_locations.py --city London --country UK
+python scripts/plot_pollutant_shapes_and_locations.py --label billboard --label pothole --individual-dir plots/pollutant_shapes
+```
+
+The script writes an atlas to `./plots/pollutant_shapes_and_locations.png` and exports normalized bounding boxes to `./data/pollutant_shapes_and_locations.csv`. It samples the visible boxes for readability while keeping summary statistics based on all matching detections. Use `--min-confidence` to filter weaker detections, and `--max-boxes-per-label` to control how many translucent boxes are drawn for each pollutant.
+
 ## Typical Workflows
 
 ### Collect data for a city and run inference

@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -27,6 +27,15 @@ class Region(Base):
     dense_scan = Column(Boolean, nullable=False, default=False)
     osm_fetched = Column(Boolean, nullable=False, default=False)
     score = Column(Float, nullable=True)
+    images_per_square_km = Column(Float, nullable=True)
+    gdp = Column(Float, nullable=True)
+    gdp_year = Column(Integer, nullable=True)
+    gdppp = Column(Float, nullable=True)
+    gdppp_year = Column(Integer, nullable=True)
+    gni = Column(Float, nullable=True)
+    gni_year = Column(Integer, nullable=True)
+    urb = Column(Float, nullable=True)
+    urb_year = Column(Integer, nullable=True)
 
     images = relationship("Image", back_populates="region",
                           cascade="all, delete-orphan")
@@ -49,6 +58,27 @@ class Image(Base):
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     score = Column(Float, nullable=True)
+    altitude = Column(Float, nullable=True)
+    atomic_scale = Column(Float, nullable=True)
+    camera_parameters = Column(JSON, nullable=True)
+    camera_type = Column(String, nullable=True)
+    compass_angle = Column(Float, nullable=True)
+    computed_altitude = Column(Float, nullable=True)
+    computed_compass_angle = Column(Float, nullable=True)
+    computed_rotation = Column(JSON, nullable=True)
+    creator_id = Column(String, nullable=True)
+    creator_username = Column(String, nullable=True)
+    exif_orientation = Column(Integer, nullable=True)
+    is_pano = Column(Boolean, nullable=True)
+    camera_make = Column(String, nullable=True)
+    camera_model = Column(String, nullable=True)
+    on_foot = Column(Boolean, nullable=True)
+    organization_id = Column(String, nullable=True)
+    organization_name = Column(String, nullable=True)
+    organization_slug = Column(String, nullable=True)
+    quality_score = Column(Float, nullable=True)
+    sequence = Column(String, nullable=True)
+    source_metadata = Column(JSON, nullable=True)
     region = relationship("Region", back_populates="images")
     detections = relationship(
         "Detection", back_populates="image", cascade="all, delete-orphan")

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from src.config import Config, KartaviewConfig, OSMConfig, MapillaryConfig
 
@@ -36,6 +36,27 @@ class ImageMetadata:
     # Optional fields
     width: Optional[int] = None
     height: Optional[int] = None
+    altitude: Optional[float] = None
+    atomic_scale: Optional[float] = None
+    camera_parameters: Optional[list] = None
+    camera_type: Optional[str] = None
+    compass_angle: Optional[float] = None
+    computed_altitude: Optional[float] = None
+    computed_compass_angle: Optional[float] = None
+    computed_rotation: Optional[list] = None
+    creator_id: Optional[str] = None
+    creator_username: Optional[str] = None
+    exif_orientation: Optional[int] = None
+    is_pano: Optional[bool] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+    on_foot: Optional[bool] = None
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None
+    organization_slug: Optional[str] = None
+    quality_score: Optional[float] = None
+    sequence: Optional[str] = None
+    mapillary_metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self):
         result = {
@@ -49,6 +70,33 @@ class ImageMetadata:
             result["width"] = self.width
         if self.height is not None:
             result["height"] = self.height
+        optional_fields = (
+            "altitude",
+            "atomic_scale",
+            "camera_parameters",
+            "camera_type",
+            "compass_angle",
+            "computed_altitude",
+            "computed_compass_angle",
+            "computed_rotation",
+            "creator_id",
+            "creator_username",
+            "exif_orientation",
+            "is_pano",
+            "make",
+            "model",
+            "on_foot",
+            "organization_id",
+            "organization_name",
+            "organization_slug",
+            "quality_score",
+            "sequence",
+            "mapillary_metadata",
+        )
+        for field_name in optional_fields:
+            value = getattr(self, field_name)
+            if value is not None:
+                result[field_name] = value
 
         return result
 
@@ -67,6 +115,44 @@ class ImageMetadata:
             source="mapillary",
             width=data.get("width"),
             height=data.get("height"),
+            altitude=data.get("altitude"),
+            atomic_scale=data.get("atomic_scale"),
+            camera_parameters=data.get("camera_parameters"),
+            camera_type=data.get("camera_type"),
+            compass_angle=data.get("compass_angle"),
+            computed_altitude=data.get("computed_altitude"),
+            computed_compass_angle=data.get("computed_compass_angle"),
+            computed_rotation=data.get("computed_rotation"),
+            creator_id=(data.get("creator") or {}).get("id"),
+            creator_username=(data.get("creator") or {}).get("username"),
+            exif_orientation=data.get("exif_orientation"),
+            is_pano=data.get("is_pano"),
+            make=data.get("make"),
+            model=data.get("model"),
+            on_foot=data.get("on_foot"),
+            organization_id=(data.get("organization") or {}).get("id"),
+            organization_name=(data.get("organization") or {}).get("name"),
+            organization_slug=(data.get("organization") or {}).get("slug"),
+            quality_score=data.get("quality_score"),
+            sequence=data.get("sequence"),
+            mapillary_metadata={
+                key: data.get(key)
+                for key in (
+                    "creator",
+                    "organization",
+                    "sfm_cluster",
+                    "mesh",
+                    "detections",
+                    "geometry",
+                    "computed_geometry",
+                    "thumb_256_url",
+                    "thumb_512_url",
+                    "thumb_2048_url",
+                    "thumb_original_url",
+                    "merge_cc",
+                )
+                if data.get(key) is not None
+            },
         )
 
     @classmethod
@@ -193,4 +279,27 @@ class ImageStoreMetadata:
             'source_captured_at': captured_at,
             'url': url,
             'source': source,
+            'width': img_data.get('width'),
+            'height': img_data.get('height'),
+            'altitude': img_data.get('altitude'),
+            'atomic_scale': img_data.get('atomic_scale'),
+            'camera_parameters': img_data.get('camera_parameters'),
+            'camera_type': img_data.get('camera_type'),
+            'compass_angle': img_data.get('compass_angle'),
+            'computed_altitude': img_data.get('computed_altitude'),
+            'computed_compass_angle': img_data.get('computed_compass_angle'),
+            'computed_rotation': img_data.get('computed_rotation'),
+            'creator_id': img_data.get('creator_id'),
+            'creator_username': img_data.get('creator_username'),
+            'exif_orientation': img_data.get('exif_orientation'),
+            'is_pano': img_data.get('is_pano'),
+            'camera_make': img_data.get('make'),
+            'camera_model': img_data.get('model'),
+            'on_foot': img_data.get('on_foot'),
+            'organization_id': img_data.get('organization_id'),
+            'organization_name': img_data.get('organization_name'),
+            'organization_slug': img_data.get('organization_slug'),
+            'quality_score': img_data.get('quality_score'),
+            'sequence': img_data.get('sequence'),
+            'source_metadata': img_data.get('mapillary_metadata'),
         }

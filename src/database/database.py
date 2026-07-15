@@ -38,9 +38,41 @@ class DatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_images_region_id ON images (region_id)",
             "ALTER TABLE images ADD COLUMN IF NOT EXISTS url_fetched_at TIMESTAMP WITH TIME ZONE",
             "ALTER TABLE images ADD COLUMN IF NOT EXISTS score DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS altitude DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS atomic_scale DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS camera_parameters JSONB",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS camera_type TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS compass_angle DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS computed_altitude DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS computed_compass_angle DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS computed_rotation JSONB",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS creator_id TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS creator_username TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS exif_orientation INTEGER",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS is_pano BOOLEAN",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS camera_make TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS camera_model TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS on_foot BOOLEAN",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS organization_id TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS organization_name TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS organization_slug TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS quality_score DOUBLE PRECISION",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS sequence TEXT",
+            "ALTER TABLE images ADD COLUMN IF NOT EXISTS source_metadata JSONB",
             "CREATE INDEX IF NOT EXISTS idx_images_source_url_fetched_at ON images (source, url_fetched_at)",
+            "CREATE INDEX IF NOT EXISTS idx_images_camera_make_model ON images (camera_make, camera_model)",
+            "CREATE INDEX IF NOT EXISTS idx_images_quality_score ON images (quality_score)",
             "CREATE INDEX IF NOT EXISTS idx_detections_image_id ON detections (image_id)",
             "CREATE INDEX IF NOT EXISTS idx_osm_features_region_id ON osm_features (region_id)",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS images_per_square_km DOUBLE PRECISION",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gdp DOUBLE PRECISION",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gdp_year INTEGER",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gdppp DOUBLE PRECISION",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gdppp_year INTEGER",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gni DOUBLE PRECISION",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS gni_year INTEGER",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS urb DOUBLE PRECISION",
+            "ALTER TABLE regions ADD COLUMN IF NOT EXISTS urb_year INTEGER",
         ]
         try:
             with self.engine.begin() as conn:
@@ -201,7 +233,7 @@ class DatabaseManager:
     def get_images_by_region(self, region_id):
         return self.images.get_by_region(region_id)
 
-    def add_image(self, region, lng, lat, id_from_source, source_captured_at, url, source, width=None, height=None):
+    def add_image(self, region, lng, lat, id_from_source, source_captured_at, url, source, width=None, height=None, **metadata):
         if isinstance(source_captured_at, int):
             captured_at = datetime.fromtimestamp(source_captured_at / 1000.0)
         elif isinstance(source_captured_at, str):
@@ -217,7 +249,7 @@ class DatabaseManager:
         else:
             return None
         image = Image(region=region, lng=lng, lat=lat, id_from_source=id_from_source,
-                      source_captured_at=captured_at, url=url, url_fetched_at=datetime.now(timezone.utc), source=source, width=width, height=height)
+                      source_captured_at=captured_at, url=url, url_fetched_at=datetime.now(timezone.utc), source=source, width=width, height=height, **metadata)
         try:
             self.images.add(image)
             return True

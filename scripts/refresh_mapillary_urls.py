@@ -1,10 +1,12 @@
 import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
+from dateutil import parser as date_parser
+from dateutil.parser import ParserError
 from sqlalchemy import or_, select
 from tqdm import tqdm
 
@@ -12,14 +14,44 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from src.utils import RateLimiter, setup_logger
 from src.database.models import Image
 from src.database import DatabaseManager
-from src.config import PipelineConfig
+from src.config import MapillaryConfig, PipelineConfig
 from src.api import MapillaryAPI
+from src.api.models import ImageMetadata
 
 
 logger = setup_logger(__name__)
 
 REFRESH_AFTER_DAYS = 28
 DEFAULT_BATCH_SIZE = 10000
+REFRESHABLE_FIELDS = (
+    "lng",
+    "lat",
+    "source_captured_at",
+    "source",
+    "width",
+    "height",
+    "altitude",
+    "atomic_scale",
+    "camera_parameters",
+    "camera_type",
+    "compass_angle",
+    "computed_altitude",
+    "computed_compass_angle",
+    "computed_rotation",
+    "creator_id",
+    "creator_username",
+    "exif_orientation",
+    "is_pano",
+    "camera_make",
+    "camera_model",
+    "on_foot",
+    "organization_id",
+    "organization_name",
+    "organization_slug",
+    "quality_score",
+    "sequence",
+    "source_metadata",
+)
 
 
 def parse_args():
@@ -92,17 +124,87 @@ def create_session(num_workers: int):
 
 def fetch_one(api: MapillaryAPI, image: Image, session):
     source_id = normalise_mapillary_image_id(image.id_from_source)
-    thumb_url = fetch_thumb_url(api, source_id, session=session)
-    return image.id, source_id, thumb_url
+    values = fetch_mapillary_image_values(api, source_id, session=session)
+    return image.id, source_id, values
 
 
-def fetch_thumb_url(api: MapillaryAPI, image_id: str, session=None):
+def fetch_mapillary_image_values(api: MapillaryAPI, image_id: str, session=None):
     response = api.send_request(
         image_id,
-        params={"fields": "thumb_1024_url"},
+        params={"fields": MapillaryConfig.DEFAULT_FIELDS},
         session=session,
     )
-    return response.get("thumb_1024_url")
+    metadata = ImageMetadata.from_mapillary(response).to_dict()
+    geometry = metadata.get("geometry") or {}
+    coords = geometry.get("coordinates") or [None, None]
+
+    return {
+        "url": metadata.get("thumb_1024_url"),
+        "lng": coords[0] if len(coords) > 0 else None,
+        "lat": coords[1] if len(coords) > 1 else None,
+        "source_captured_at": parse_captured_at(metadata.get("captured_at")),
+        "source": metadata.get("_source"),
+        "width": metadata.get("width"),
+        "height": metadata.get("height"),
+        "altitude": metadata.get("altitude"),
+        "atomic_scale": metadata.get("atomic_scale"),
+        "camera_parameters": metadata.get("camera_parameters"),
+        "camera_type": metadata.get("camera_type"),
+        "compass_angle": metadata.get("compass_angle"),
+        "computed_altitude": metadata.get("computed_altitude"),
+        "computed_compass_angle": metadata.get("computed_compass_angle"),
+        "computed_rotation": metadata.get("computed_rotation"),
+        "creator_id": metadata.get("creator_id"),
+        "creator_username": metadata.get("creator_username"),
+        "exif_orientation": metadata.get("exif_orientation"),
+        "is_pano": metadata.get("is_pano"),
+        "camera_make": metadata.get("make"),
+        "camera_model": metadata.get("model"),
+        "on_foot": metadata.get("on_foot"),
+        "organization_id": metadata.get("organization_id"),
+        "organization_name": metadata.get("organization_name"),
+        "organization_slug": metadata.get("organization_slug"),
+        "quality_score": metadata.get("quality_score"),
+        "sequence": metadata.get("sequence"),
+        "source_metadata": metadata.get("mapillary_metadata"),
+    }
+
+
+def parse_captured_at(value):
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return datetime.fromtimestamp(value / 1000.0)
+    if isinstance(value, str):
+        try:
+            return date_parser.parse(value)
+        except (ParserError, ValueError, TypeError):
+            return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    return None
+
+
+def is_empty(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    if isinstance(value, (dict, list, tuple, set)):
+        return len(value) == 0
+    return False
+
+
+def fill_empty_fields(image: Image, values: dict):
+    updated = 0
+    for field_name in REFRESHABLE_FIELDS:
+        value = values.get(field_name)
+        if not is_empty(value) and is_empty(getattr(image, field_name)):
+            setattr(image, field_name, value)
+            updated += 1
+    return updated
 
 
 def main():
@@ -117,6 +219,7 @@ def main():
 
     stmt = build_query(args.force, cutoff)
     refreshed = 0
+    filled_fields = 0
     skipped = 0
     failed = 0
     processed = 0
@@ -166,7 +269,9 @@ def main():
                         image_id = futures[future]
                         image = image_lookup[image_id]
                         try:
-                            _, source_id, thumb_url = future.result()
+                            _, source_id, values = future.result()
+                            thumb_url = values.get("url")
+                            filled_fields += fill_empty_fields(image, values)
                             if not thumb_url:
                                 skipped += 1
                                 logger.warning(
@@ -198,9 +303,10 @@ def main():
         return
 
     logger.info(
-        "Finished refreshing Mapillary URLs. processed=%s refreshed=%s skipped=%s failed=%s",
+        "Finished refreshing Mapillary URLs. processed=%s refreshed=%s filled_fields=%s skipped=%s failed=%s",
         processed,
         refreshed,
+        filled_fields,
         skipped,
         failed,
     )

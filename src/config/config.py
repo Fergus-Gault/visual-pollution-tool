@@ -23,7 +23,40 @@ class ArgsConfig:
 
 class MapillaryConfig:
     BASE_URL = "https://graph.mapillary.com"
-    DEFAULT_FIELDS = "id,computed_geometry,thumb_1024_url,captured_at"
+    DEFAULT_FIELDS = ",".join([
+        "id",
+        "altitude",
+        "atomic_scale",
+        "camera_parameters",
+        "camera_type",
+        "captured_at",
+        "compass_angle",
+        "computed_altitude",
+        "computed_compass_angle",
+        "computed_geometry",
+        "computed_rotation",
+        "creator",
+        "detections",
+        "exif_orientation",
+        "geometry",
+        "height",
+        "is_pano",
+        "make",
+        "merge_cc",
+        "mesh",
+        "model",
+        "on_foot",
+        "organization",
+        "quality_score",
+        "sequence",
+        "sfm_cluster",
+        "thumb_256_url",
+        "thumb_512_url",
+        "thumb_1024_url",
+        "thumb_2048_url",
+        "thumb_original_url",
+        "width",
+    ])
     DEFAULT_DELAY = 0.3
     IMAGES_PER_POINT = 2
     SUBREGIONS = 10000
